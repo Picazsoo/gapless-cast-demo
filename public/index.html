@@ -32,6 +32,7 @@
   header.hero { padding: 56px 0 28px; }
   .kicker { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
   h1 { font-size: clamp(30px, 5.2vw, 46px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; max-width: 20ch; }
+  .sub { font-size: 20px; font-weight: 600; margin: -4px 0 18px; max-width: 52ch; }
   h1 .pre { display: block; color: var(--accent); font-size: .62em; letter-spacing: -.01em; margin-bottom: 6px; }
   .lead { font-size: 19px; color: var(--muted); max-width: 62ch; margin: 0; }
   .lead strong { color: var(--fg); font-weight: 600; }
@@ -190,8 +191,9 @@
 <main>
   <header class="hero">
     <p class="kicker">Google Cast · Opus · Media Source Extensions</p>
-    <h1><span class="pre">Proving a point –</span> Gapless albums on Cast are a receiver problem, not a hardware one</h1>
-    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and only the receiver's lowest layer changes (nothing changes in how the music service encodes or serves its files, or in the apps and devices: just the small JavaScript receiver page the speaker loads). You can try it on your own Cast speakers right from this page.</p>
+    <h1><span class="pre">Proving a point –</span> Gapless albums on Cast are a software problem, not a hardware one</h1>
+    <p class="sub">The fix is a few hundred lines of JavaScript in the app's receiver page. No new devices, no server changes.</p>
+    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and the only thing that changes is the music app's JavaScript receiver page (the small web app the Chromecast loads). Nothing changes in how the music service encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page.</p>
   </header>
 
   <section id="listen">

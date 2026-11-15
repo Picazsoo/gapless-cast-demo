@@ -18,10 +18,10 @@ The player code above the SourceBuffer doesn't change: one flag switches it. For
 | Join | Per-track (stock) | Plain MSE queue | Sample-accurate SourceBuffer |
 |---|---|---|---|
 | 1 → 2 | 29 ms of silence | −168 samples (3.5 ms lost) | **0** |
-| 4 → 5 |  | −130 samples (2.7 ms) | **0** |
-| 9 → 10 |  | −7 samples (0.15 ms) | **0** |
+| 4 → 5 | 18 ms of silence | −130 samples (2.7 ms) | **0** |
+| 9 → 10 | 19 ms of silence | −7 samples (0.15 ms) | **0** |
 | 10 → 11 (inside the crescendo) | 79 ms of silence | −187 samples (3.9 ms) | **0** |
-| 13 → 14 |  | −8 samples (0.17 ms) | **0** |
+| 13 → 14 | 19 ms of silence | −8 samples (0.17 ms) | **0** |
 
 On a Cast device the per-track gap is much longer, because each new media load goes through the device's slower pipeline.
 

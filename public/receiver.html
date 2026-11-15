@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gapless Cast demo receiver</title>
+<script src="//www.gstatic.com/cast/sdk/libs/caf_receiver/v3/cast_receiver_framework.js"></script>
+<style>
+  html, body { margin: 0; height: 100%; background: #101418; color: #e8eaed; font: 28px/1.4 system-ui, sans-serif; }
+  main { display: flex; flex-direction: column; justify-content: center; height: 100%; padding: 0 8vw; box-sizing: border-box; }
+  #mode { font-size: 22px; letter-spacing: .08em; text-transform: uppercase; color: #8ab4f8; }
+  #title { font-size: 48px; font-weight: 600; margin: .2em 0; }
+  #album { color: #9aa0a6; }
+  .bar { height: 6px; background: #2a2f35; border-radius: 3px; margin-top: 1.2em; overflow: hidden; }
+  #progress { height: 100%; width: 0; background: #8ab4f8; }
+  #log { position: fixed; left: 8vw; right: 8vw; bottom: 4vh; font: 16px/1.3 ui-monospace, monospace; color: #6f7680; white-space: pre-wrap; max-height: 25vh; overflow: hidden; }
+</style>
+</head>
+<body>
+<main>
+  <div id="mode">Waiting for a sender</div>
+  <div id="title">Gapless Cast demo</div>
+  <div id="album"></div>
+  <div class="bar"><div id="progress"></div></div>
+</main>
+<div id="log"></div>
+<audio id="audio"></audio>
+<script src="js/flac-mp4.js"></script>
+<script src="js/sample-accurate-sb.js"></script>
+<script src="js/mse-queue.js"></script>
+<script src="js/demo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var NS = 'urn:x-cast:dev.gapless.castdemo';
+  var context = cast.framework.CastReceiverContext.getInstance();
+  var el = document.getElementById('audio'), lines = [], lastTime = 0;
+  function $(id) { return document.getElementById(id); }
+  function send(msg) { try { context.sendCustomMessage(NS, undefined, msg); } catch (e) {} }
+  function log(m) {
+    lines.push(m); if (lines.length > 8) lines.shift();
+    $('log').textContent = lines.join('\n');
+    send({ type: 'log', data: m });
+  }
+  Demo.onReport(function (type, data) {
+    if (type === 'log') return log(data);
+    if (type === 'error') { log('ERROR ' + data); send({ type: 'error', data: data }); return; }
+    if (type === 'track') $('title').textContent = data.title;
+    if (type === 'state' && data.mode) $('mode').textContent = data.mode === 'sample-accurate' ? 'Sample-accurate SourceBuffer' : 'Plain MSE';
+    if (type === 'time') {
+      $('progress').style.width = Math.min(100, 100 * data.position / data.duration) + '%';
+      if (Date.now() - lastTime < 1000) return;
+      lastTime = Date.now();
+    }
+    send({ type: type, data: data });
+  });
+  Demo.loadAlbum().then(function (a) { $('album').textContent = a.title + ' · ' + a.artist; });
+
+  context.addCustomMessageListener(NS, function (ev) { Demo.handle(ev.data, el); });
+  var options = new cast.framework.CastReceiverOptions();
+  options.skipPlayersLoad = true;        // our own MSE player, no Cast media pipeline libraries
+  options.disableIdleTimeout = true;
+  options.customNamespaces = {};
+  options.customNamespaces[NS] = cast.framework.system.MessageType.JSON;
+  context.start(options);
+  log('receiver ready: ' + navigator.userAgent);
+})();
+</script>
+</body>
+</html>

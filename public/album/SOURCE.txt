@@ -1,0 +1,40 @@
+Beethoven: Symphony No. 5 in C minor, Op. 67 - IV. Allegro
+Performers: Skidmore College Orchestra (recording distributed by Musopen)
+
+Source file (Ogg Vorbis, 48 kHz stereo, ~140 kb/s, 706.68 s):
+  https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg
+  https://musopen.org/music/113/ludwig-van-beethoven/symphony-no-5-in-cm-op-67/
+
+Licence (from the Commons file page):
+  Music: PD-old-100 (public domain)
+  Recording: PD-author (released into the public domain by Musopen; Commons OTRS ticket 2008012110017088)
+  Musopen asks, as a courtesy, not to sell the recordings directly and to credit Musopen in derived works.
+
+Processing:
+  1. The first 566.401 s of the movement were decoded from the .ogg to one continuous 48 kHz stereo signal
+     (rebuilt sample-exactly from a first sample-accurate Opus split of the same audio).
+  2. Cut into 14 tracks of very different lengths (9 s to 102 s) at uneven sample positions in sounding music,
+     with atrim=start_sample=X:end_sample=Y (end exclusive). Track 10 starts inside the crescendo out of the
+     quiet scherzo recall into the recapitulation.
+  3. Each track encoded separately like YouTube Music's itag 251:
+     ffmpeg -i NN.wav -c:a libopus -b:a 160k -vbr on -frame_duration 20 -ar 48000 -ac 2 -f webm NN.webm
+  4. Remuxed (no re-encode) into the layout streaming services use for itag 251: Segment{Info, Tracks,
+     Cues, Clusters}, Cues before the first Cluster, timestamps starting at 0 (first block at -7 ms, i.e.
+     the Opus pre-skip). Each file's decoded length was checked against its cut (OK = exact).
+
+Cut positions (samples at 48000 Hz, start inclusive, end exclusive):
+  01.webm         0 ..    439223  (  439223 samples,   9.150 s)  OK
+  02.webm    439223 ..   2716764  ( 2277541 samples,  47.449 s)  OK
+  03.webm   2716764 ..   3397861  (  681097 samples,  14.190 s)  OK
+  04.webm   3397861 ..   7878311  ( 4480450 samples,  93.343 s)  OK
+  05.webm   7878311 ..   8972243  ( 1093932 samples,  22.790 s)  OK
+  06.webm   8972243 ..   9467780  (  495537 samples,  10.324 s)  OK
+  07.webm   9467780 ..  12407281  ( 2939501 samples,  61.240 s)  OK
+  08.webm  12407281 ..  14060196  ( 1652915 samples,  34.436 s)  OK
+  09.webm  14060196 ..  18972331  ( 4912135 samples, 102.336 s)  OK
+  10.webm  18972331 ..  19716518  (  744187 samples,  15.504 s)  OK
+  11.webm  19716518 ..  20296650  (  580132 samples,  12.086 s)  OK
+  12.webm  20296650 ..  21567249  ( 1270599 samples,  26.471 s)  OK
+  13.webm  21567249 ..  24217529  ( 2650280 samples,  55.214 s)  OK
+  14.webm  24217529 ..  27187253  ( 2969724 samples,  61.869 s)  OK
+Total: 27187253 samples = 566.401 s. The last track ends mid-sound (the movement continues).

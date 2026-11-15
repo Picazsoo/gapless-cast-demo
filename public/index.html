@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gapless Cast demo</title>
+<style>
+  :root { --bg: #f6f7f9; --card: #fff; --fg: #1f2328; --muted: #656d76; --line: #d8dee4; --accent: #0b57d0; --on: #e8f0fe; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0d1117; --card: #161b22; --fg: #e6edf3; --muted: #8d96a0; --line: #30363d; --accent: #8ab4f8; --on: #1c2a44; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+  main { max-width: 860px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; } p { margin: 4px 0 12px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 14px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
+  label { display: inline-flex; gap: 6px; align-items: center; }
+  button, select, input { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
+  button.primary { background: var(--accent); color: var(--card); border-color: var(--accent); }
+  button:disabled { opacity: .5; }
+  google-cast-launcher { width: 28px; height: 28px; display: inline-block; cursor: pointer; --connected-color: var(--accent); --disconnected-color: var(--muted); }
+  ol { margin: 0; padding-left: 28px; } li { padding: 2px 4px; border-radius: 4px; display: flex; gap: 10px; }
+  li.now { background: var(--on); font-weight: 600; } li span.d { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 10px; } #progress { height: 100%; width: 0; background: var(--accent); }
+  #log { font: 12px/1.35 ui-monospace, monospace; white-space: pre-wrap; max-height: 260px; overflow: auto; color: var(--muted); margin: 0; }
+  #status { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Gapless Opus on Cast, through MSE</h1>
+  <p>One continuous public-domain recording, split into 14 tracks of 9 to 102 s at arbitrary points mid-sound.
+     Play it with an ordinary single-SourceBuffer MSE queue, then switch only the SourceBuffer underneath and listen to the joins.</p>
+
+  <div class="card">
+    <div class="row">
+      <label><input type="radio" name="mode" value="plain"> Plain MSE</label>
+      <label><input type="radio" name="mode" value="sample-accurate" checked> Sample-accurate SourceBuffer</label>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <label><input type="radio" name="target" value="local" checked> This browser</label>
+      <label><input type="radio" name="target" value="cast"> Cast device</label>
+      <google-cast-launcher id="castButton" title="Connect to a Cast device"></google-cast-launcher>
+      <label>Receiver app ID <input id="appId" size="10" placeholder="ABCD1234"></label>
+      <span id="status"></span>
+    </div>
+    <div class="row" style="margin-top:12px">
+      <button class="primary" id="play">Play album</button>
+      <label>Jump to join <select id="join"></select></label><button id="jump">Go</button>
+      <button id="pause">Pause</button><button id="stop">Stop</button>
+    </div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+
+  <div class="card"><ol id="tracks"></ol></div>
+  <div class="card"><pre id="log"></pre></div>
+  <audio id="audio"></audio>
+</main>
+<script src="js/flac-mp4.js"></script>
+<script src="js/sample-accurate-sb.js"></script>
+<script src="js/mse-queue.js"></script>
+<script src="js/demo.js"></script>
+<script>
+(function () {
+  'use strict';
+  var NS = 'urn:x-cast:dev.gapless.castdemo';
+  function $(id) { return document.getElementById(id); }
+  function pick(name) { return document.querySelector('input[name=' + name + ']:checked').value; }
+  function fmt(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }
+  var album = null, el = $('audio');
+  function log(m) { var l = $('log'); l.textContent += new Date().toTimeString().slice(0, 8) + '  ' + m + '\n'; l.scrollTop = l.scrollHeight; }
+
+  function onReport(type, data) {
+    if (type === 'log') return log(data);
+    if (type === 'error') return log('ERROR ' + data);
+    if (type === 'track') {
+      [].forEach.call($('tracks').children, function (li, i) { li.className = i === data.index ? 'now' : ''; });
+      log('▶ ' + (data.index + 1) + '. ' + data.title);
+    }
+    if (type === 'time') $('progress').style.width = Math.min(100, 100 * data.position / data.duration) + '%';
+    if (type === 'ended') log('album finished');
+  }
+  Demo.onReport(onReport);
+
+  Demo.loadAlbum().then(function (a) {
+    album = a;
+    a.tracks.forEach(function (t, i) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span></span><span class="d"></span>';
+      li.children[0].textContent = t.title; li.children[1].textContent = fmt(t.duration);
+      li.onclick = function () { send({ cmd: 'play', mode: pick('mode'), index: i, offset: 0 }); };
+      $('tracks').appendChild(li);
+      if (i + 1 < a.tracks.length) {
+        var o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + ' → ' + (i + 2); $('join').appendChild(o);
+      }
+    });
+    log('album: ' + a.title + ' (' + a.artist + '), ' + a.license);
+  });
+
+  // ---------------------------------------------------------------- Cast
+  var appId = ''; try { appId = localStorage.getItem('castDemoAppId') || ''; } catch (e) {}
+  $('appId').value = appId;
+  $('appId').onchange = function () { try { localStorage.setItem('castDemoAppId', this.value.trim()); } catch (e) {} log('reload the page to use the new app ID'); };
+  function session() { return window.cast && cast.framework ? cast.framework.CastContext.getInstance().getCurrentSession() : null; }
+  window.__onGCastApiAvailable = function (ok) {
+    if (!ok) return;
+    if (!appId) { $('status').textContent = 'enter your receiver app ID to cast'; return; }
+    var ctx = cast.framework.CastContext.getInstance();
+    ctx.setOptions({ receiverApplicationId: appId, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
+    ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, function (ev) {
+      var s = session();
+      $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
+      if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
+        s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data); });
+        document.querySelector('input[name=target][value=cast]').checked = true;
+        log('Cast session: ' + s.getCastDevice().friendlyName);
+      }
+    });
+  };
+
+  function send(cmd) {
+    if (pick('target') === 'cast') {
+      var s = session();
+      if (!s) { log('not connected to a Cast device'); return; }
+      el.pause();
+      s.sendMessage(NS, cmd).catch(function (e) { log('send failed: ' + (e && e.code || e)); });
+    } else Demo.handle(cmd, el);
+  }
+  function resetPause() { paused = false; $('pause').textContent = 'Pause'; }
+  $('play').onclick = function () { resetPause(); send({ cmd: 'play', mode: pick('mode'), index: 0, offset: 0 }); };
+  $('jump').onclick = function () { resetPause(); send(Demo.joinCommand(+$('join').value, pick('mode'))); };
+  var paused = false;
+  $('pause').onclick = function () { paused = !paused; send({ cmd: paused ? 'pause' : 'resume' }); this.textContent = paused ? 'Resume' : 'Pause'; };
+  $('stop').onclick = function () { send({ cmd: 'stop' }); };
+})();
+</script>
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+</body>
+</html>

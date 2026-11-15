@@ -1,0 +1,78 @@
+{
+  "title": "Beethoven: Symphony No. 5 (IV. Allegro), gapless test",
+  "artist": "Skidmore College Orchestra (via Musopen)",
+  "source": "https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg",
+  "license": "Public Domain (composition PD-old-100; recording PD-author, released by Musopen)",
+  "tracks": [
+    {
+      "file": "01.webm",
+      "title": "IV. Allegro, part 1 (opening)",
+      "duration": 9.151
+    },
+    {
+      "file": "02.webm",
+      "title": "IV. Allegro, part 2",
+      "duration": 47.448
+    },
+    {
+      "file": "03.webm",
+      "title": "IV. Allegro, part 3",
+      "duration": 14.189
+    },
+    {
+      "file": "04.webm",
+      "title": "IV. Allegro, part 4",
+      "duration": 93.342
+    },
+    {
+      "file": "05.webm",
+      "title": "IV. Allegro, part 5",
+      "duration": 22.79
+    },
+    {
+      "file": "06.webm",
+      "title": "IV. Allegro, part 6",
+      "duration": 10.323
+    },
+    {
+      "file": "07.webm",
+      "title": "IV. Allegro, part 7",
+      "duration": 61.239
+    },
+    {
+      "file": "08.webm",
+      "title": "IV. Allegro, part 8",
+      "duration": 34.435
+    },
+    {
+      "file": "09.webm",
+      "title": "IV. Allegro, part 9 (into the crescendo)",
+      "duration": 102.336
+    },
+    {
+      "file": "10.webm",
+      "title": "IV. Allegro, part 10 (crescendo)",
+      "duration": 15.503
+    },
+    {
+      "file": "11.webm",
+      "title": "IV. Allegro, part 11 (recapitulation)",
+      "duration": 12.086
+    },
+    {
+      "file": "12.webm",
+      "title": "IV. Allegro, part 12",
+      "duration": 26.47
+    },
+    {
+      "file": "13.webm",
+      "title": "IV. Allegro, part 13",
+      "duration": 55.214
+    },
+    {
+      "file": "14.webm",
+      "title": "IV. Allegro, part 14",
+      "duration": 61.869
+    }
+  ]
+}

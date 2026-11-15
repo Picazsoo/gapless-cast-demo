@@ -16,7 +16,6 @@
   button, select, input { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px; }
   button.primary { background: var(--accent); color: var(--card); border-color: var(--accent); }
   button:disabled { opacity: .5; }
-  google-cast-launcher { width: 28px; height: 28px; display: inline-block; cursor: pointer; --connected-color: var(--accent); --disconnected-color: var(--muted); }
   ol { margin: 0; padding-left: 28px; } li { padding: 2px 4px; border-radius: 4px; display: flex; gap: 10px; }
   li.now { background: var(--on); font-weight: 600; } li span.d { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
   .bar { height: 5px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 10px; } #progress { height: 100%; width: 0; background: var(--accent); }
@@ -38,7 +37,7 @@
     <div class="row" style="margin-top:10px">
       <label><input type="radio" name="target" value="local" checked> This browser</label>
       <label><input type="radio" name="target" value="cast"> Cast device</label>
-      <google-cast-launcher id="castButton" title="Connect to a Cast device"></google-cast-launcher>
+      <button id="castBtn" disabled title="Choose a Cast device">Cast…</button>
       <label>Receiver app ID <input id="appId" size="10" placeholder="ABCD1234"></label>
       <span id="status"></span>
     </div>
@@ -97,23 +96,46 @@
 
   // ---------------------------------------------------------------- Cast
   var appId = ''; try { appId = localStorage.getItem('castDemoAppId') || ''; } catch (e) {}
+  var castApi = false, castInit = '';
   $('appId').value = appId;
-  $('appId').onchange = function () { try { localStorage.setItem('castDemoAppId', this.value.trim()); } catch (e) {} log('reload the page to use the new app ID'); };
-  function session() { return window.cast && cast.framework ? cast.framework.CastContext.getInstance().getCurrentSession() : null; }
-  window.__onGCastApiAvailable = function (ok) {
-    if (!ok) return;
-    if (!appId) { $('status').textContent = 'enter your receiver app ID to cast'; return; }
+  $('appId').onchange = function () {
+    appId = this.value.trim();
+    try { localStorage.setItem('castDemoAppId', appId); } catch (e) {}
+    if (castInit && castInit !== appId) log('reload the page to switch to the new app ID');
+  };
+  function session() { return castInit ? cast.framework.CastContext.getInstance().getCurrentSession() : null; }
+  function initCast() {
+    if (castInit || !castApi || !appId) return !!castInit;
     var ctx = cast.framework.CastContext.getInstance();
     ctx.setOptions({ receiverApplicationId: appId, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
     ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, function (ev) {
       var s = session();
       $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
+      $('castBtn').textContent = s ? 'Disconnect' : 'Cast…';
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
         s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data); });
         document.querySelector('input[name=target][value=cast]').checked = true;
         log('Cast session: ' + s.getCastDevice().friendlyName);
       }
     });
+    castInit = appId;
+    return true;
+  }
+  window.__onGCastApiAvailable = function (ok) {
+    if (!ok) { $('status').textContent = 'Cast is not available in this browser (use Chrome or Edge)'; return; }
+    castApi = true;
+    $('castBtn').disabled = false;
+    if (!appId) $('status').textContent = 'enter your receiver app ID, then press Cast…';
+    initCast();
+  };
+  $('castBtn').onclick = function () {
+    appId = $('appId').value.trim();
+    if (!appId) { log('enter your receiver app ID first'); $('appId').focus(); return; }
+    try { localStorage.setItem('castDemoAppId', appId); } catch (e) {}
+    if (!initCast()) { log('the Cast API has not loaded yet; is this page open via http://localhost?'); return; }
+    var ctx = cast.framework.CastContext.getInstance();
+    if (session()) { ctx.endCurrentSession(true); return; }
+    ctx.requestSession().catch(function (e) { if (e !== 'cancel') log('Cast: ' + e); });
   };
 
   function send(cmd) {

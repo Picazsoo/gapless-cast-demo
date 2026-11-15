@@ -27,11 +27,12 @@
 <main>
   <h1>Gapless Opus on Cast, through MSE</h1>
   <p>One continuous public-domain recording, split into 14 tracks of 9 to 102 s at arbitrary points mid-sound.
-     Play it with an ordinary single-SourceBuffer MSE queue, then switch only the SourceBuffer underneath and listen to the joins.</p>
+     Compare the stock per-track loading, an ordinary single-SourceBuffer MSE queue, and the same queue with only the SourceBuffer swapped. You can switch modes while it plays.</p>
 
   <div class="card">
     <div class="row">
-      <label><input type="radio" name="mode" value="plain"> Plain MSE</label>
+      <label title="One MediaSource per track, next track loaded after 'ended': the usual non-gapless behaviour"><input type="radio" name="mode" value="stock"> Per-track (stock)</label>
+      <label title="Gapless queue mode: all tracks into one SourceBuffer, no trimming"><input type="radio" name="mode" value="plain"> Plain MSE queue</label>
       <label><input type="radio" name="mode" value="sample-accurate" checked> Sample-accurate SourceBuffer</label>
     </div>
     <div class="row" style="margin-top:10px">
@@ -95,7 +96,9 @@
   });
 
   // ---------------------------------------------------------------- Cast
-  var appId = ''; try { appId = localStorage.getItem('castDemoAppId') || ''; } catch (e) {}
+  // Set this to your published receiver's app ID for a public demo.
+  var DEFAULT_APP_ID = '';
+  var appId = DEFAULT_APP_ID; try { appId = localStorage.getItem('castDemoAppId') || DEFAULT_APP_ID; } catch (e) {}
   var castApi = false, castInit = '';
   $('appId').value = appId;
   $('appId').onchange = function () {
@@ -152,6 +155,10 @@
   var paused = false;
   $('pause').onclick = function () { paused = !paused; send({ cmd: paused ? 'pause' : 'resume' }); this.textContent = paused ? 'Resume' : 'Pause'; };
   $('stop').onclick = function () { send({ cmd: 'stop' }); };
+  // Switching mode while playing restarts the same spot in the new mode.
+  [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
+    r.onchange = function () { if (this.checked) send({ cmd: 'mode', mode: this.value }); };
+  });
 })();
 </script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>

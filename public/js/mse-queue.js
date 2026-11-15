@@ -13,6 +13,8 @@
  * leaves a small gap or click at every track change (more on a Chromecast).
  * Turn on SampleAccurateSB.enabled before play() and the same code becomes
  * sample-accurate, because only the SourceBuffer underneath changes.
+ * play(..., perTrack = true) is the stock comparison: one MediaSource per
+ * track, the next one loaded after 'ended', so every boundary has a gap.
  *
  * MIT licence, see LICENSE.
  */
@@ -69,12 +71,23 @@
   }
 
   // tracks: [{ url, title, duration (s) }]; starts at tracks[startIndex], startOffset s into it.
-  QueuePlayer.prototype.play = function (tracks, startIndex, startOffset) {
+  // perTrack: the stock, non-gapless way instead: every track gets its own
+  // fresh MediaSource, loaded when the previous one has ended.
+  QueuePlayer.prototype.play = function (tracks, startIndex, startOffset, perTrack) {
     this.stop();
     var self = this, gen = ++this.gen, el = this.el;
-    var list = tracks.slice(startIndex || 0), offsets = [], t0 = 0;
+    startIndex = startIndex || 0;
+    var list = perTrack ? tracks.slice(startIndex, startIndex + 1) : tracks.slice(startIndex), offsets = [], t0 = 0;
     list.forEach(function (t) { offsets.push(t0); t0 = Math.round((t0 + t.duration) * 1000) / 1000; });
-    this.list = list; this.offsets = offsets; this.base = startIndex || 0;
+    this.list = list; this.offsets = offsets; this.base = startIndex;
+    this.onEnded = function () {
+      if (!alive()) return;
+      if (perTrack && startIndex + 1 < tracks.length) {
+        self.emit('log', 'track ended: new MediaSource for the next track (stock behaviour)');
+        self.play(tracks, startIndex + 1, 0, true);
+      } else { self.emit('ended', {}); self.stop(); }
+    };
+    el.addEventListener('ended', this.onEnded);
     var ms = new MediaSource(), sb = null, cur = -1, files = [], current = null, next = 0, eos = false, playingIndex = -1;
     var seekTo = startOffset || 0;          // applied once the first init segment is in
     el.src = URL.createObjectURL(ms);
@@ -146,13 +159,21 @@
       while (i + 1 < offsets.length && offsets[i + 1] <= t) i++;
       if (i !== playingIndex) { playingIndex = i; self.emit('track', { index: self.base + i, title: list[i].title }); }
       self.emit('time', { index: self.base + i, position: t - offsets[i], duration: list[i].duration });
-      if (el.ended) { self.emit('ended', {}); self.stop(); }
     }, 250);
+  };
+
+  // Where playback is now: { index, position } in album terms, or null when stopped.
+  QueuePlayer.prototype.position = function () {
+    if (!this.offsets || !this.el.src) return null;
+    var t = this.el.currentTime, o = this.offsets, i = 0;
+    while (i + 1 < o.length && o[i + 1] <= t) i++;
+    return { index: this.base + i, position: Math.max(0, t - o[i]) };
   };
 
   QueuePlayer.prototype.stop = function () {
     this.gen++;
     clearInterval(this.timer);
+    if (this.onEnded) { this.el.removeEventListener('ended', this.onEnded); this.onEnded = null; }
     if (this.el.src) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
   };
   QueuePlayer.prototype.pause = function () { this.el.pause(); };

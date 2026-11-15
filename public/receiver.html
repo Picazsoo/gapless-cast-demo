@@ -45,7 +45,7 @@
     if (type === 'log') return log(data);
     if (type === 'error') { log('ERROR ' + data); send({ type: 'error', data: data }); return; }
     if (type === 'track') $('title').textContent = data.title;
-    if (type === 'state' && data.mode) $('mode').textContent = data.mode === 'sample-accurate' ? 'Sample-accurate SourceBuffer' : 'Plain MSE';
+    if (type === 'state' && data.mode) $('mode').textContent = { 'stock': 'Per-track loading (stock)', 'plain': 'Plain MSE queue', 'sample-accurate': 'Sample-accurate SourceBuffer' }[data.mode];
     if (type === 'time') {
       $('progress').style.width = Math.min(100, 100 * data.position / data.duration) + '%';
       if (Date.now() - lastTime < 1000) return;

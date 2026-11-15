@@ -37,6 +37,28 @@
   .lead { font-size: 19px; color: var(--muted); max-width: 62ch; margin: 0; }
   .lead strong { color: var(--fg); font-weight: 600; }
 
+  .hero-grid { display: grid; grid-template-columns: minmax(0,1fr) 210px; gap: 36px; align-items: start; }
+  .sleeves { margin: 6px 0 0; }
+  .sleeve-stack { position: relative; width: 210px; aspect-ratio: 1; }
+  .sleeve { position: absolute; inset: 0; border-radius: 6px; padding: 16px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between;
+    color: #fff; box-shadow: 0 10px 28px rgba(0,0,0,.22), 0 1px 0 rgba(255,255,255,.12) inset; opacity: 0; transform: translateY(6px) scale(.98); transition: opacity .7s ease, transform .7s ease; }
+  .sleeve.on { opacity: 1; transform: none; }
+  .sleeve .yr { font-size: 12px; letter-spacing: .14em; opacity: .8; font-variant-numeric: tabular-nums; }
+  .sleeve .t { font-size: 23px; line-height: 1.08; font-weight: 750; letter-spacing: -.015em; text-wrap: balance; }
+  .sleeve .a { font-size: 13px; opacity: .88; margin-top: 6px; }
+  .sleeve::after { content: ""; position: absolute; right: 14px; top: 14px; width: 34px; height: 34px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,255,255,.55) 0 3px, transparent 3.5px 9px, rgba(255,255,255,.18) 9.5px 10.5px, transparent 11px 15px, rgba(255,255,255,.18) 15.5px 16.5px, transparent 17px); }
+  .sleeves figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; line-height: 1.4; }
+  .sleeves figcaption b { color: var(--fg); font-weight: 600; }
+  @media (max-width: 760px) {
+    .hero-grid { grid-template-columns: 1fr; gap: 20px; }
+    .sleeves { display: flex; gap: 16px; align-items: center; order: 2; }
+    .sleeve-stack { width: 132px; flex: none; }
+    .sleeve { padding: 11px; } .sleeve .t { font-size: 16px; } .sleeve .a { font-size: 11px; } .sleeve::after { display: none; }
+    .sleeves figcaption { margin-top: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .sleeve { transition: none; transform: none; } }
+
   section { margin-top: 56px; }
   h2 { font-size: 24px; letter-spacing: -.01em; margin: 0 0 6px; display: flex; gap: 12px; align-items: baseline; }
   h2 .n { font-size: 14px; color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -190,10 +212,18 @@
 <body>
 <main>
   <header class="hero">
+   <div class="hero-grid">
+    <div>
     <p class="kicker">Google Cast · Opus · Media Source Extensions</p>
     <h1><span class="pre">Proving a point –</span> Gapless albums on Cast are a software problem, not a hardware one</h1>
     <p class="sub">The fix is a few hundred lines of JavaScript in the app's receiver page. No new devices, no server changes.</p>
     <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and the only thing that changes is the music app's JavaScript receiver page (the small web app the Chromecast loads). Nothing changes in how the music service encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page.</p>
+    </div>
+    <figure class="sleeves" aria-label="Albums meant to play without a break">
+      <div class="sleeve-stack" id="sleeves"></div>
+      <figcaption><b>Meant to play without a break.</b> <span id="sleeveNote">On Cast speakers, music apps put a gap or click between their tracks.</span></figcaption>
+    </figure>
+   </div>
   </header>
 
   <section id="listen">
@@ -593,5 +623,63 @@
 })();
 </script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+<script>
+// Drawn title tiles, not cover art: the repo carries no copyrighted images.
+(function () {
+  // [artist, title, year]. All are made to play straight through, with tracks running into each other.
+  var albums = [
+    ['Pink Floyd', 'The Dark Side of the Moon', 1973],
+    ['The Beatles', 'Abbey Road', 1969],
+    ['Beyonc\u00e9', 'Renaissance', 2022],
+    ['Marvin Gaye', 'What\u2019s Going On', 1971],
+    ['Beethoven', 'Symphony No. 5, III \u2192 IV', 1808],
+    ['The Avalanches', 'Since I Left You', 2000],
+    ['Pink Floyd', 'Wish You Were Here', 1975],
+    ['Kendrick Lamar', 'good kid, m.A.A.d city', 2012],
+    ['Mike Oldfield', 'Tubular Bells', 1973],
+    ['Daft Punk', 'Alive 2007', 2007],
+    ['The Beatles', 'Sgt. Pepper\u2019s Lonely Hearts Club Band', 1967],
+    ['Green Day', 'American Idiot', 2004],
+    ['DJ Shadow', 'Endtroducing.....', 1996],
+    ['Frank Ocean', 'channel ORANGE', 2012],
+    ['Pink Floyd', 'The Wall', 1979],
+    ['Jean-Michel Jarre', 'Oxyg\u00e8ne', 1976],
+    ['Nine Inch Nails', 'The Downward Spiral', 1994],
+    ['Beyonc\u00e9', 'Lemonade', 2016],
+    ['The Who', 'Quadrophenia', 1973],
+    ['Kraftwerk', 'Trans-Europe Express', 1977],
+    ['Janelle Mon\u00e1e', 'The ArchAndroid', 2010],
+    ['Genesis', 'The Lamb Lies Down on Broadway', 1974],
+    ['Kendrick Lamar', 'To Pimp a Butterfly', 2015],
+    ['Rush', '2112', 1976],
+    ['Dream Theater', 'Metropolis Pt. 2: Scenes from a Memory', 1999],
+    ['Jethro Tull', 'Thick as a Brick', 1972],
+    ['Godspeed You! Black Emperor', 'F\u266f A\u266f \u221e', 1997],
+    ['Mendelssohn', 'Violin Concerto in E minor', 1844],
+    ['Wagner', 'Any act of any opera', ''],
+    ['', 'Every DJ mix', ''],
+    ['', 'Every live album', '']
+  ];
+  var box = document.getElementById('sleeves'); if (!box) return;
+  var els = albums.map(function (a, i) {
+    var d = document.createElement('div');
+    d.className = 'sleeve' + (i ? '' : ' on');
+    d.setAttribute('aria-hidden', i ? 'true' : 'false');
+    var h = (i * 137) % 360; d.style.background = 'linear-gradient(145deg, hsl(' + h + ' 52% 36%), hsl(' + ((h + 40) % 360) + ' 58% 17%))';
+    d.innerHTML = '<div class="yr"></div><div><div class="t"></div><div class="a"></div></div>';
+    d.querySelector('.yr').textContent = a[2];
+    d.querySelector('.t').textContent = a[1];
+    d.querySelector('.a').textContent = a[0];
+    box.appendChild(d); return d;
+  });
+  var k = 0, reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setInterval(function () {
+    if (document.hidden) return;
+    els[k].classList.remove('on'); els[k].setAttribute('aria-hidden', 'true');
+    k = (k + 1) % els.length;
+    els[k].classList.add('on'); els[k].setAttribute('aria-hidden', 'false');
+  }, reduce ? 6000 : 3200);
+})();
+</script>
 </body>
 </html>

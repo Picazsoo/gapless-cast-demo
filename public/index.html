@@ -569,6 +569,7 @@
     draw('waveC', 999, 999, 0);
   })();
 </script>
+<script src="config.js"></script>
 <script>
 (function () {
   'use strict';
@@ -620,7 +621,8 @@
 
   // ---------------------------------------------------------------- Cast
   // Set this to your published receiver's app ID for a public demo.
-  var DEFAULT_APP_ID = '';
+  // Set in public/config.js (git-ignored; copy config.example.js). The Pages workflow writes it from the CAST_APP_ID repository variable.
+  var DEFAULT_APP_ID = (window.CAST_DEMO_CONFIG && window.CAST_DEMO_CONFIG.appId) || '';
   var appId = DEFAULT_APP_ID; try { appId = localStorage.getItem('castDemoAppId') || DEFAULT_APP_ID; } catch (e) {}
   var castApi = false, castInit = '';
   $('appId').value = appId;

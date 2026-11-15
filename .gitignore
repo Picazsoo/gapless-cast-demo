@@ -1,2 +1,4 @@
 node_modules/
 .DS_Store
+# local Cast app ID (see public/config.example.js)
+public/config.js

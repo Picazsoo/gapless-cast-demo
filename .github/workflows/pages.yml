@@ -20,6 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      # The Cast app ID is not in the repo: set it under Settings → Secrets and variables → Actions → Variables → CAST_APP_ID.
+      - name: Write config.js
+        env:
+          CAST_APP_ID: ${{ vars.CAST_APP_ID }}
+        run: printf "window.CAST_DEMO_CONFIG = { appId: '%s' };\n" "$CAST_APP_ID" > public/config.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

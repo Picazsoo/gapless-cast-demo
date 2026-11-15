@@ -140,10 +140,10 @@ node server.js          (or double-click start.bat on Windows)
 **On a Cast device:**
 
 1. In the [Google Cast SDK Developer Console](https://cast.google.com/publish), add a *Custom Receiver* with the URL the server prints, `http://<this computer's LAN IP>:8080/receiver.html`. Register your Cast device's serial number for development, and reboot the device once. While the app is unpublished, a registered device loads it over plain HTTP.
-2. Open `http://localhost:8080/` on the same computer. The Cast sender API needs a secure context, and `localhost` counts as one. Enter the app ID and press **Cast…** to pick the device.
+2. Open `http://localhost:8080/` on the same computer. The Cast sender API needs a secure context, and `localhost` counts as one. Enter the app ID and press **Cast…** to pick the device. To skip typing it, copy `public/config.example.js` to `public/config.js` (git-ignored) and put the ID there.
 3. Select **Cast device** and play. The receiver shows the current track and mode on screen, and logs come back to the page.
 
-**As a public online demo:** everything is static, so any HTTPS static host works. GitHub Pages is the simplest: choose *Settings → Pages → Source: GitHub Actions*, and the included workflow (`.github/workflows/pages.yml`) publishes `public/` on every push to `main`. Set the Cast console app's receiver URL to `https://<user>.github.io/<repo>/receiver.html` and publish the app. Published apps run on any Cast device without serial registration, but they must be served over HTTPS. Visitors then open the Pages URL in desktop Chrome or Edge, press **Cast…**, and play. Put the published app ID into `DEFAULT_APP_ID` in `public/index.html`, so visitors don't have to type it.
+**As a public online demo:** everything is static, so any HTTPS static host works. GitHub Pages is the simplest: choose *Settings → Pages → Source: GitHub Actions*, and the included workflow (`.github/workflows/pages.yml`) publishes `public/` on every push to `main`. Set the Cast console app's receiver URL to `https://<user>.github.io/<repo>/receiver.html` and publish the app. Published apps run on any Cast device without serial registration, but they must be served over HTTPS. Visitors then open the Pages URL in desktop Chrome or Edge, press **Cast…**, and play. Add the published app ID as a repository variable named `CAST_APP_ID` (*Settings → Secrets and variables → Actions → Variables*); the workflow writes it into `config.js` on deploy, so visitors don't have to type it and the ID never sits in the repo.
 
 ## Files
 

@@ -40,7 +40,7 @@ Reports come in through the **Report your result** form on the demo page, which 
 | Device | Firmware / Chrome | Speaker group | Per-track (YouTube Music) | Gapless queue | Sample-accurate |
 |---|---|---|---|---|---|
 | Chromecast Audio (2015) | CrKey 1.56 / Chrome 90 | yes, 2 × Chromecast Audio | gap | click | **seamless** |
-| Google TV (onn 4K, 2023) | | | not tested yet | | |
+| Google TV (onn 4K, 2023) | latest update, Nov 2026 | – (single device) | gap | glitch | **seamless** |
 
 ## How it works
 

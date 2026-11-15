@@ -1,6 +1,6 @@
 # Gapless Opus on Google Cast, through MSE
 
-This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one continuous orchestral recording cut into 14 tracks at arbitrary points mid-sound.
+This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one complete orchestral movement cut into 14 tracks at arbitrary points mid-sound.
 
 The point is to show the change a music Cast receiver needs, in code small enough to read in one sitting:
 
@@ -153,7 +153,7 @@ node server.js          (or double-click start.bat on Windows)
 
 The album is Beethoven's Symphony No. 5 in C minor, Op. 67, fourth movement (Allegro), performed by the Skidmore College Orchestra and released into the public domain by [Musopen](https://musopen.org/). It comes from [Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg).
 
-The first 566.4 s are cut into 14 tracks of 9 s to 102 s, at uneven sample positions in sounding music. Track 10 starts inside the crescendo into the recapitulation. Each track was encoded separately, the way music services encode per-track Opus: 160 kb/s VBR, 20 ms frames, 48 kHz. Each file was then remuxed into the usual streaming layout, with Cues before the first Cluster and timestamps from 0. Every file decodes to exactly its cut length. Cut positions and commands are in [`public/album/SOURCE.txt`](public/album/SOURCE.txt).
+The whole movement (706.7 s) is cut into 14 tracks of 9 s to 202 s, at uneven sample positions in sounding music. Track 10 starts inside the crescendo into the recapitulation. Each track was encoded separately, the way music services encode per-track Opus: 160 kb/s VBR, 20 ms frames, 48 kHz. Each file was then remuxed into the usual streaming layout, with Cues before the first Cluster and timestamps from 0. Every file decodes to exactly its cut length. Cut positions and commands are in [`public/album/SOURCE.txt`](public/album/SOURCE.txt).
 
 ## Licence
 

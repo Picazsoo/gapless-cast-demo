@@ -11,9 +11,9 @@ Licence (from the Commons file page):
   Musopen asks, as a courtesy, not to sell the recordings directly and to credit Musopen in derived works.
 
 Processing:
-  1. The first 566.401 s of the movement were decoded from the .ogg to one continuous 48 kHz stereo signal
-     (rebuilt sample-exactly from a first sample-accurate Opus split of the same audio).
-  2. Cut into 14 tracks of very different lengths (9 s to 102 s) at uneven sample positions in sounding music,
+  1. The whole movement was decoded from the .ogg (SHA-256 e8ef66ab6190c9c3...) to one continuous 48 kHz
+     stereo signal: ffmpeg -i allegro.ogg -f s16le -ac 2 -ar 48000 all.raw (33,920,640 samples, 706.680 s).
+  2. Cut into 14 tracks of very different lengths (9 s to 202 s) at uneven sample positions in sounding music,
      with atrim=start_sample=X:end_sample=Y (end exclusive). Track 10 starts inside the crescendo out of the
      quiet scherzo recall into the recapitulation.
   3. Each track encoded separately like YouTube Music's itag 251:
@@ -36,5 +36,5 @@ Cut positions (samples at 48000 Hz, start inclusive, end exclusive):
   11.webm  19716518 ..  20296650  (  580132 samples,  12.086 s)  OK
   12.webm  20296650 ..  21567249  ( 1270599 samples,  26.471 s)  OK
   13.webm  21567249 ..  24217529  ( 2650280 samples,  55.214 s)  OK
-  14.webm  24217529 ..  27187253  ( 2969724 samples,  61.869 s)  OK
-Total: 27187253 samples = 566.401 s. The last track ends mid-sound (the movement continues).
+  14.webm  24217529 ..  33920640  ( 9703111 samples, 202.148 s)  OK
+Total: 33920640 samples = 706.680 s, the complete movement; track 14 runs to the final chord.

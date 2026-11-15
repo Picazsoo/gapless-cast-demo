@@ -120,7 +120,8 @@
       while (alive()) {
         if (seekTo && el.readyState >= 1) { el.currentTime = seekTo; seekTo = 0; }
         var t = Math.max(el.currentTime, seekTo), r = buffered();
-        if (r.length && r.start(0) < t - BEHIND - 5) { await remove(0, t - BEHIND); continue; }
+        // evict behind the playhead (not after endOfStream(): a remove would reopen the stream)
+        if (!eos && r.length && r.start(0) < t - BEHIND - 5) { await remove(0, t - BEHIND); continue; }
         if (eos || aheadOf(t) > AHEAD) { await sleep(250); continue; }
         if (!current || next >= current.clusters.length) {               // start the next track
           if (cur + 1 >= list.length) { eos = true; ms.endOfStream(); self.emit('log', 'all tracks appended; endOfStream()'); continue; }

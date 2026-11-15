@@ -166,7 +166,7 @@
       var r0 = Math.max(0, Math.min(start, lo / SR) - dmax / SR - 0.1);
       var r1 = end === Infinity ? Infinity : Math.max(end, hi / SR) + dmax / SR + 0.1;
       this.segs.forEach(function (g) { if (g.sent && g.abs1 > r0 * SR && g.abs0 < r1 * SR) g.sent = false; });
-      this.queueReal(function () { if (r1 > r0) { self.real.remove(Math.max(0, r0), r1); return true; } })
+      this.queueReal(function () { if (r1 > r0 && realState(self.ms) !== 'ended') { self.real.remove(Math.max(0, r0), r1); return true; } return false; })
         .then(function () { self.updating = false; self.fire(['update', 'updateend']); self.feed(); });
     }
 
@@ -304,7 +304,9 @@
       var el = this.element(), t = el ? el.currentTime : 0, self = this;
       var rb; try { rb = this.real.buffered; } catch (e) { return; }
       this.stallReport(el, t, rb);
-      if (rb.length && rb.start(0) < t - 2.5) {              // evict what has been played
+      // Once the stream has ended, touching the real buffer would reopen the
+      // MediaSource and the element would wait for more audio forever.
+      if (rb.length && rb.start(0) < t - 2.5 && realState(this.ms) !== 'ended') {  // evict what has been played
         var cut = t - 1.5;
         this.segs.forEach(function (g) { if (g.sent && g.abs1 <= cut * SR) { g.sent = false; g.pcm = null; } });
         if (this.progress && this.progress.seg.abs1 <= cut * SR) this.progress = null;

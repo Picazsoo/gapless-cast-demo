@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gapless on Cast</title>
+<title>Proving a point: gapless on Cast</title>
 <meta name="description" content="Gapless album playback on Google Cast devices is a receiver problem, not a hardware limit. Listen to the difference and see the small fix.">
 <style>
   :root {
@@ -31,7 +31,8 @@
 
   header.hero { padding: 56px 0 28px; }
   .kicker { font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-  h1 { font-size: clamp(30px, 5.2vw, 46px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; max-width: 18ch; }
+  h1 { font-size: clamp(30px, 5.2vw, 46px); line-height: 1.1; letter-spacing: -.02em; margin: 0 0 16px; max-width: 20ch; }
+  h1 .pre { display: block; color: var(--accent); font-size: .62em; letter-spacing: -.01em; margin-bottom: 6px; }
   .lead { font-size: 19px; color: var(--muted); max-width: 62ch; margin: 0; }
   .lead strong { color: var(--fg); font-weight: 600; }
 
@@ -143,6 +144,21 @@
   .castbtn .ci { width: 20px; height: 20px; fill: currentColor; }
   .castmeta { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: flex-end; font-size: 13px; margin: 0 2px 14px; min-height: 1.4em; }
 
+  /* ---------- report ---------- */
+  .report { margin-top: 18px; }
+  .report h3 { margin: 0 0 4px; font-size: 17px; }
+  .report > p { margin: 0 0 12px; font-size: 14px; max-width: 70ch; }
+  .rrow { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: end; }
+  .rrow label.grow { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+  .rrow label.chk { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; padding-bottom: 8px; }
+  table.verdicts { margin-top: 12px; }
+  table.verdicts th:not(:first-child), table.verdicts td:not(:first-child) { text-align: center; width: 84px; }
+  table.verdicts .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 8px; vertical-align: 0; }
+  table.verdicts td { vertical-align: middle; }
+  table.verdicts input { width: 18px; height: 18px; accent-color: var(--accent); }
+  label.notes { display: flex; flex-direction: column; gap: 4px; margin-top: 12px; font-size: 14px; }
+  textarea { font: inherit; color: inherit; background: var(--card); border: 1px solid var(--line); border-radius: 9px; padding: 7px 12px; resize: vertical; }
+
   /* ---------- pipeline diagrams ---------- */
   .stacks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 22px; }
   .stack { display: flex; flex-direction: column; gap: 0; }
@@ -174,8 +190,8 @@
 <main>
   <header class="hero">
     <p class="kicker">Google Cast · Opus · Media Source Extensions</p>
-    <h1>Gapless albums on Cast are a receiver problem, not a hardware one</h1>
-    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and you can try it on your own Cast speakers right from this page, and only the receiver's lowest layer changes (nothing changes in how the music service encodes or serves its files, or in the apps and devices: just the small JavaScript receiver page the speaker loads).</p>
+    <h1><span class="pre">Proving a point –</span> Gapless albums on Cast are a receiver problem, not a hardware one</h1>
+    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and only the receiver's lowest layer changes (nothing changes in how the music service encodes or serves its files, or in the apps and devices: just the small JavaScript receiver page the speaker loads). You can try it on your own Cast speakers right from this page.</p>
   </header>
 
   <section id="listen">
@@ -218,6 +234,27 @@
       <details class="log"><summary>Player log</summary><pre id="log"></pre></details>
     </div>
     <p class="hint">Recording: Beethoven, Symphony No. 5, IV. Allegro, by the Skidmore College Orchestra (public domain, via Musopen). The whole movement, cut into tracks from 9 s to 3:22 long at arbitrary points mid-sound, and each one is encoded separately as Opus in WebM, just as music services stream them.</p>
+
+    <div class="card report" id="report">
+      <h3>Tried it on your own Cast device? Report your result</h3>
+      <p class="muted">Results from many different devices make the case. This opens a pre-filled GitHub issue that you can review before posting. It includes your receiver's firmware and browser version, but never your device's name.</p>
+      <div class="rrow">
+        <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
+        <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
+      </div>
+      <div class="tablewrap">
+        <table class="verdicts">
+          <thead><tr><th>What you heard at the track changes</th><th>Gap</th><th>Click</th><th>Seamless</th><th>Not tried</th></tr></thead>
+          <tbody>
+            <tr><td><i class="dot bad"></i>Per-track, like YouTube Music</td><td><input type="radio" name="v_stock" value="gap" aria-label="gap"></td><td><input type="radio" name="v_stock" value="click" aria-label="click"></td><td><input type="radio" name="v_stock" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_stock" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr><td><i class="dot meh"></i>Gapless queue</td><td><input type="radio" name="v_plain" value="gap" aria-label="gap"></td><td><input type="radio" name="v_plain" value="click" aria-label="click"></td><td><input type="radio" name="v_plain" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_plain" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr><td><i class="dot good"></i>Sample-accurate</td><td><input type="radio" name="v_sa" value="gap" aria-label="gap"></td><td><input type="radio" name="v_sa" value="click" aria-label="click"></td><td><input type="radio" name="v_sa" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_sa" value="not tried" checked aria-label="not tried"></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
+      <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><button class="primary" id="rSend">Open GitHub issue</button></div>
+    </div>
   </section>
 
   <section id="what">
@@ -400,9 +437,14 @@
   function pick(name) { return document.querySelector('input[name=' + name + ']:checked').value; }
   function fmt(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }
   var album = null, el = $('audio'), nowIndex = -1;
+  // Where reports go: change this if you fork the repository.
+  var REPO = 'Picazsoo/gapless-cast-demo';
+  var castDevice = null;
+  function shortUa(ua) { var m = /CrKey\/[\d.]+/.exec(ua || ''), c = /Chrome\/[\d.]+/.exec(ua || ''); return [m && m[0], c && c[0]].filter(Boolean).join(', ') || (ua || '').slice(0, 80); }
   function log(m) { var l = $('log'); l.textContent += new Date().toTimeString().slice(0, 8) + '  ' + m + '\n'; l.scrollTop = l.scrollHeight; }
 
   function onReport(type, data) {
+    if (type === 'device') { castDevice = data; $('rDevice').textContent = 'Receiver details found: ' + shortUa(data.userAgent); return; }
     if (type === 'log') return log(data);
     if (type === 'error') return log('ERROR ' + data);
     if (type === 'track') {
@@ -458,6 +500,7 @@
       $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
         s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data); });
+        s.sendMessage(NS, { cmd: 'info' }).catch(function () {});
         document.querySelector('input[name=target][value=cast]').checked = true;
         log('Cast session: ' + s.getCastDevice().friendlyName);
       }
@@ -505,6 +548,22 @@
     resetPause();
     send({ cmd: 'play', mode: pick('mode'), index: nowIndex, offset: offset });
   };
+  // "Report your result": opens a pre-filled GitHub issue (the visitor reviews it before posting).
+  $('rSend').onclick = function () {
+    var model = $('rModel').value.trim();
+    if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return; }
+    function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
+    var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' + v('v_sa');
+    var receiver = castDevice
+      ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
+        '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nScreen: ' + castDevice.screen
+      : 'Not connected to a Cast device; played in the browser: ' + navigator.userAgent;
+    var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
+              device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiver, notes: $('rNotes').value.trim() };
+    var url = 'https://github.com/' + REPO + '/issues/new?' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
+    window.open(url, '_blank', 'noopener');
+  };
+
   // Switching mode while playing restarts the same spot in the new mode.
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
     r.onchange = function () { if (this.checked) send({ cmd: 'mode', mode: this.value }); };

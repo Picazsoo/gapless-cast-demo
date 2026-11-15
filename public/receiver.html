@@ -55,7 +55,23 @@
   });
   Demo.loadAlbum().then(function (a) { $('album').textContent = a.title + ' · ' + a.artist; });
 
-  context.addCustomMessageListener(NS, function (ev) { Demo.handle(ev.data, el); });
+  // What the page's "Report your result" form includes: technical details only.
+  // The device's own name (e.g. "Living room") is never read or sent.
+  function deviceInfo() {
+    var caps = null;
+    try { caps = context.getDeviceCapabilities(); } catch (e) {}
+    function mse(t) { try { return MediaSource.isTypeSupported(t); } catch (e) { return false; } }
+    return {
+      userAgent: navigator.userAgent,
+      capabilities: caps || {},
+      mse: { opusWebm: mse('audio/webm; codecs="opus"'), flacMp4: mse('audio/mp4; codecs="flac"') },
+      screen: screen.width + 'x' + screen.height
+    };
+  }
+  context.addCustomMessageListener(NS, function (ev) {
+    if (ev.data && ev.data.cmd === 'info') { send({ type: 'device', data: deviceInfo() }); return; }
+    Demo.handle(ev.data, el);
+  });
   var options = new cast.framework.CastReceiverOptions();
   options.skipPlayersLoad = true;        // our own MSE player, no Cast media pipeline libraries
   options.disableIdleTimeout = true;

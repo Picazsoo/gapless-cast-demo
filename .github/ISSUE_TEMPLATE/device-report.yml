@@ -1,0 +1,42 @@
+name: Device report
+description: How the demo sounded on your Cast device (the demo page fills this in for you)
+title: "Device report: "
+labels: ["device-report"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for testing! Please don't add your device's name (like "Living room") or anything else personal.
+  - type: input
+    id: device
+    attributes:
+      label: Device model
+      placeholder: e.g. Nest Audio, Chromecast with Google TV (4K), Sony TV with Cast built in
+    validations:
+      required: true
+  - type: input
+    id: group
+    attributes:
+      label: Played to a speaker group?
+      placeholder: "no, or yes: which models were in the group"
+  - type: textarea
+    id: results
+    attributes:
+      label: What you heard at the track changes
+      description: For each mode, gap / click / seamless / not tried.
+      value: |
+        Per-track, like YouTube Music: 
+        Gapless queue: 
+        Sample-accurate: 
+    validations:
+      required: true
+  - type: textarea
+    id: receiver
+    attributes:
+      label: Receiver details (filled in by the page)
+      description: Firmware and browser version reported by the receiver itself.
+      render: text
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes

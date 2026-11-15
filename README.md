@@ -1,4 +1,4 @@
-# Gapless Opus on Google Cast, through MSE
+# Proving a point: gapless albums on Cast are a receiver problem, not a hardware one
 
 This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one complete orchestral movement cut into 14 tracks at arbitrary points mid-sound.
 
@@ -31,7 +31,14 @@ On a Cast device the per-track gap is much longer, because each new media load g
 - With the sample-accurate SourceBuffer the album plays seamlessly. This includes a **speaker group** of two Chromecast Audios, and **adding a speaker to the stream while it plays**.
 - The same SourceBuffer wrapper was also tested underneath the gapless queue mode of a production streaming player engine, running unchanged above it. This album played gaplessly there too.
 
-**Google TV (onn 4K, 2023):** not tested yet.
+### Results on other Cast devices
+
+Reports come in through the **Report your result** form on the demo page, which opens a pre-filled [device report](../../issues/new?template=device-report.yml). It includes the receiver's firmware and browser version, never the device's name.
+
+| Device | Firmware / Chrome | Speaker group | Per-track (YouTube Music) | Gapless queue | Sample-accurate |
+|---|---|---|---|---|---|
+| Chromecast Audio (2015) | CrKey 1.56 / Chrome 90 | yes, 2 × Chromecast Audio | gap | click | **seamless** |
+| Google TV (onn 4K, 2023) | | | not tested yet | | |
 
 ## How it works
 

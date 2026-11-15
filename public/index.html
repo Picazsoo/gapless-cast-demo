@@ -194,7 +194,7 @@
       </div>
       <div class="castmeta"><span id="status"></span><details class="appid"><summary>Receiver app ID</summary><input id="appId" size="10" placeholder="ABCD1234" aria-label="Receiver app ID"></details></div>
       <div class="modes" role="radiogroup" aria-label="Playback mode">
-        <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track</b><span class="d">How music receivers work today: each track is a new media load. A gap at every split.</span></label>
+        <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks remain.</span></label>
         <label class="mode"><input type="radio" name="mode" value="sample-accurate" checked><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Seamless.</span></label>
       </div>
@@ -231,7 +231,7 @@
           <rect class="gap" x="112" y="6" width="22" height="58"/>
           <text x="123" y="80" text-anchor="middle">gap</text>
         </svg>
-        <p>The track ends, the player tears down its stream, loads the next file and starts again. That's tens of milliseconds of silence in a desktop browser, and more on a Cast device.</p>
+        <p>What the YouTube Music Cast receiver does today. The track ends, the player tears down its stream, loads the next file and starts again. That's tens of milliseconds of silence in a desktop browser, and more on a Cast device.</p>
       </div>
       <div class="card">
         <h3><i class="dot meh" style="width:10px;height:10px;border-radius:50%;display:inline-block"></i>Gapless queue</h3>

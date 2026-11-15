@@ -402,6 +402,26 @@
     <p class="muted">On a Chromecast Audio (2015, Chrome 90 inside), the gapless queue clicks audibly at every join. The sample-accurate mode is seamless on a single speaker and in a speaker group.</p>
   </section>
 
+  <section id="others">
+    <h2><span class="n">06</span> Why Spotify or Apple Music can't just copy this</h2>
+    <p>This trick needs one thing: the receiver page must be able to decode the audio itself. That's what lets it cut the encoder's lead-in and padding to the sample.</p>
+    <div class="three">
+      <div class="card">
+        <h3><i class="dot" style="width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--good)"></i>YouTube Music</h3>
+        <p>Streams ordinary, unencrypted Opus to the Cast receiver. The receiver page can decode it with the browser's own decoder, so the whole fix fits in the receiver's JavaScript, as shown on this page.</p>
+      </div>
+      <div class="card">
+        <h3><i class="dot" style="width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--muted)"></i>Spotify</h3>
+        <p>Its Cast receiver plays every format, lossless included, through Widevine DRM. Decryption and decoding happen inside the device's protected media pipeline, and the decoded audio never reaches JavaScript, so it can't be trimmed there. It also starts a new media stream for each track.</p>
+      </div>
+      <div class="card">
+        <h3><i class="dot" style="width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--muted)"></i>Apple Music</h3>
+        <p>Its Cast receiver streams encrypted AAC through Google's built-in Cast player, with Widevine DRM too. Again the page never sees decoded audio, and each track change goes through the player's queue.</p>
+      </div>
+    </div>
+    <p class="muted">That doesn't make gapless impossible for them, just harder. They could append tracks back to back into one encrypted buffer and let the device's decoder do the trimming, using the gapless information AAC files already carry. Only they can make that change, and nobody outside can test whether Cast devices splice encrypted audio cleanly. YouTube Music is in the unusual position where the fix is entirely in its own receiver's JavaScript. (Based on the public Cast receiver pages of each service, as observed in November 2026.)</p>
+  </section>
+
   <footer>
     <p>An independent demo. It is not affiliated with Google or with any music service, and contains no code from any of their receivers. The code is under the MIT licence. Source, measurements and set-up: see the repository's README.</p>
     <p>Recording: Ludwig van Beethoven, Symphony No. 5 in C minor, Op. 67, IV. Allegro, by the Skidmore College Orchestra. Public domain, released by <a href="https://musopen.org/">Musopen</a>, via <a href="https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg">Wikimedia Commons</a>.</p>

@@ -281,7 +281,7 @@
     <div class="card">
       <div class="castband">
         <div class="cbicon"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/></svg></div>
-        <div class="cbtext"><b>Hear it on your own Chromecast</b><span>Any Cast speaker, TV or speaker group on your network. <strong>Casting needs Chrome (or Edge) on a desktop computer</strong>: phones and other browsers can't send to Cast from a web page.</span></div>
+        <div class="cbtext"><b>Hear it on your own Chromecast</b><span>Any Cast speaker, TV or speaker group on your network. <strong>Casting needs Chrome on a computer or an Android phone</strong> (Edge works on a computer too). iPhones, iPads and other browsers can't send to Cast from a web page.</span></div>
         <div class="seg" role="radiogroup" aria-label="Where to play">
           <label><input type="radio" name="target" value="local" checked><span>This browser</span></label>
           <label><input type="radio" name="target" value="cast"><span>Cast device</span></label>
@@ -562,8 +562,8 @@
     <details class="faq" id="faq-youtube-code"><summary>Is this YouTube's code?</summary>
       <p>No. It is our own code, under the MIT licence, plus the open-source Opus codec (<a href="https://opus-codec.org/">libopus</a>, BSD licence, compiled to JavaScript by <a href="https://github.com/abalabahaha/opusscript">opusscript</a>, MIT) for devices that can't decode Opus themselves. The page only describes YouTube Music's observed behaviour, and the music is a public-domain recording.</p>
     </details>
-    <details class="faq" id="faq-desktop-chrome"><summary>Why does casting need Chrome or Edge on a desktop?</summary>
-      <p>Google's Cast sender library for web pages only runs there. Phones can't start a cast from a web page.</p>
+    <details class="faq" id="faq-desktop-chrome"><summary>Which browsers can cast this page?</summary>
+      <p>Chrome on a computer or on Android, and Edge on a computer. Google's Cast sender library for web pages only runs in those. On iPhone and iPad, no browser can start a cast from a web page.</p>
     </details>
     <details class="faq" id="faq-other-devices"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
       <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in may behave the same way, but haven't been tested yet. On a first-generation Google Home Mini the sample-accurate mode can't decode fast enough, so it doesn't work there for now. Its experimental Opus bridge option is meant for devices like that and is still being tested there. Please try it and <a href="#report">report your result</a>.</p>
@@ -762,7 +762,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
   }
   window.__onGCastApiAvailable = function (ok) {
-    if (!ok) { $('status').textContent = 'Casting is not available in this browser. Open this page in Chrome or Edge on a desktop computer.'; return; }
+    if (!ok) { $('status').textContent = 'Casting is not available in this browser. Open this page in Chrome on a computer or an Android phone, or in Edge on a computer.'; return; }
     castApi = true;
     $('castBtn').disabled = false;
     if (!appId) $('status').textContent = 'enter the receiver app ID, then press Cast';

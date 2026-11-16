@@ -70,29 +70,91 @@
     this.gen = 0;
   }
 
+  // Which element plays our stream. Normally the one we were given; when the
+  // Cast framework loads the stream (opts.external), it sets the src itself, so
+  // look for the element that holds our blob URL.
+  QueuePlayer.prototype.element = function () {
+    if (!this.external || !this.url) return this.el;
+    var all = document.querySelectorAll('audio, video');
+    for (var i = 0; i < all.length; i++) if (all[i].src === this.url) return all[i];
+    return this.el;
+  };
+
   // tracks: [{ url, title, duration (s) }]; starts at tracks[startIndex], startOffset s into it.
   // perTrack: the stock, non-gapless way instead: every track gets its own
   // fresh MediaSource, loaded when the previous one has ended.
-  QueuePlayer.prototype.play = function (tracks, startIndex, startOffset, perTrack) {
-    this.stop();
-    var self = this, gen = ++this.gen, el = this.el;
-    startIndex = startIndex || 0;
-    var list = perTrack ? tracks.slice(startIndex, startIndex + 1) : tracks.slice(startIndex), offsets = [], t0 = 0;
-    list.forEach(function (t) { offsets.push(t0); t0 = Math.round((t0 + t.duration) * 1000) / 1000; });
-    this.list = list; this.offsets = offsets; this.base = startIndex;
+  // opts.external: don't attach the MediaSource to the element; whoever loads
+  // this.url (the Cast framework) does, and it also starts playback.
+  QueuePlayer.prototype.play = function (tracks, startIndex, startOffset, perTrack, opts) {
+    opts = opts || {};
+    this.stop(!!opts.external);
+    var self = this, ms = new MediaSource();
+    this.external = !!opts.external; this.perTrack = !!perTrack;
+    this.ms = ms; this.sb = null;
+    this.url = URL.createObjectURL(ms);
     this.onEnded = function () {
-      if (!alive()) return;
+      if (ms !== self.ms) return;
       if (perTrack && startIndex + 1 < tracks.length) {
         self.emit('log', 'track ended: new MediaSource for the next track (stock behaviour)');
         self.play(tracks, startIndex + 1, 0, true);
-      } else { self.emit('ended', {}); self.stop(); }
+      } else { self.emit('ended', {}); if (!self.external) self.stop(); }
     };
-    el.addEventListener('ended', this.onEnded);
-    var ms = new MediaSource(), sb = null, cur = -1, files = [], current = null, next = 0, eos = false, playingIndex = -1;
-    var seekTo = startOffset || 0;          // applied once the first init segment is in
-    el.src = URL.createObjectURL(ms);
-    this.ms = ms;
-    function alive() { return gen === self.gen; }
+    ms.addEventListener('sourceopen', function () {
+      if (ms !== self.ms) return;
+      var el = self.element();
+      el.addEventListener('ended', self.onEnded); self.endedEl = el;
+      self.sb = ms.addSourceBuffer(MIME);
+      self.run(perTrack ? tracks.slice(startIndex, startIndex + 1) : tracks.slice(startIndex), startIndex, startOffset, 0);
+      if (!self.external) el.play().catch(function (e) { self.emit('log', 'play(): ' + e.message); });
+    }, { once: true });
+    if (!this.external) this.el.src = this.url;
+    var playingIndex = -1;
+    this.timer = setInterval(function () {
+      if (ms !== self.ms || !self.offsets) return;
+      var at = self.position();
+      if (!at) return;
+      if (at.index !== playingIndex) { playingIndex = at.index; self.emit('track', { index: at.index, title: tracks[at.index].title }); }
+      self.emit('time', { index: at.index, position: at.position, duration: tracks[at.index].duration });
+    }, 250);
+  };
+
+  // Continue in the same MediaSource and SourceBuffer from another point:
+  // clear the buffer and lay the queue out again further along the timeline.
+  // The element and whatever owns it (the Cast framework) never see a new
+  // source, only a seek. Returns false when there is nothing to reuse.
+  QueuePlayer.prototype.reset = function (tracks, startIndex, startOffset) {
+    var ms = this.ms, sb = this.sb, self = this;
+    if (!ms || !sb || this.perTrack || ms.readyState === 'closed') return false;
+    this.gen++;                                               // the running pump stops at its next step
+    var gen = this.gen;
+    function idle() { return sb.updating ? new Promise(function (r) { sb.addEventListener('updateend', function () { r(); }, { once: true }); }) : Promise.resolve(); }
+    try { sb.abort(); } catch (e) {}
+    idle().then(function () {
+      if (gen !== self.gen) return;
+      var el = self.element();
+      var base = Math.ceil(Math.max(isFinite(ms.duration) ? ms.duration : 0, el.currentTime)) + 1;
+      return new Promise(function (r) {
+        sb.addEventListener('updateend', function () { r(); }, { once: true });
+        try { sb.remove(0, Infinity); } catch (e) { r(); }
+      }).then(function () {
+        if (gen !== self.gen) return;
+        self.emit('log', 'restart in place at track ' + (startIndex + 1) + ', ' + (startOffset || 0).toFixed(1) + ' s');
+        self.run(tracks.slice(startIndex), startIndex, startOffset, base);
+      });
+    }).catch(function (e) { self.emit('error', 'reset: ' + (e.message || e)); });
+    return true;
+  };
+
+  // Append list (album tracks from startIndex on) starting at timeline position base.
+  QueuePlayer.prototype.run = function (list, startIndex, startOffset, base) {
+    var self = this, gen = ++this.gen, ms = this.ms, sb = this.sb;
+    var offsets = [], t0 = base;
+    list.forEach(function (t) { offsets.push(t0); t0 = Math.round((t0 + t.duration) * 1000) / 1000; });
+    this.list = list; this.offsets = offsets; this.base = startIndex;
+    var cur = -1, files = [], current = null, next = 0, eos = false;
+    var seekTo = base + (startOffset || 0);  // applied once data can be positioned
+    function alive() { return gen === self.gen && ms === self.ms; }
+    function el() { return self.element(); }
     function load(i) {
       if (!files[i]) files[i] = fetch(list[i].url).then(function (r) {
         if (!r.ok) throw new Error(list[i].url + ': HTTP ' + r.status);
@@ -116,10 +178,14 @@
         sb.remove(a, b);
       });
     }
+    function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
     async function pump() {
+      // the whole queue, so a start offset is seekable (grows on every in-place restart)
+      if (!(ms.duration >= t0)) ms.duration = t0;
       while (alive()) {
-        if (seekTo && el.readyState >= 1) { el.currentTime = seekTo; seekTo = 0; }
-        var t = Math.max(el.currentTime, seekTo), r = buffered();
+        var e = el();
+        if (seekTo && e.readyState >= 1) { e.currentTime = seekTo; seekTo = 0; }
+        var t = Math.max(e.currentTime, seekTo), r = buffered();
         // evict behind the playhead (not after endOfStream(): a remove would reopen the stream)
         if (!eos && r.length && r.start(0) < t - BEHIND - 5) { await remove(0, t - BEHIND); continue; }
         if (eos || aheadOf(t) > AHEAD) { await sleep(250); continue; }
@@ -131,7 +197,7 @@
           sb.abort();
           sb.timestampOffset = offsets[cur];
           sb.appendWindowStart = offsets[cur];
-          await append(current.header);
+          await append(current.header); if (!alive()) return;
           next = 0;
           if (cur === 0 && startOffset) {                                 // seek: begin at the cluster holding startOffset
             while (next + 1 < current.clusters.length && current.clusters[next + 1].time <= startOffset) next++;
@@ -140,45 +206,37 @@
         }
         var c = current.clusters[next];
         try { await append(new Uint8Array(current.bytes, c.start, c.end - c.start)); next++; }
-        catch (e) {
-          if (e.name === 'QuotaExceededError') { await sleep(500); continue; }
-          throw e;
+        catch (err) {
+          if (!alive()) return;
+          if (err.name === 'QuotaExceededError') { await sleep(500); continue; }
+          throw err;
         }
       }
     }
-    function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
-    ms.addEventListener('sourceopen', function () {
-      if (!alive()) return;
-      ms.duration = t0;                     // the whole queue, so a start offset is seekable
-      sb = ms.addSourceBuffer(MIME);
-      pump().catch(function (e) { if (alive()) self.emit('error', e.message || String(e)); });
-      el.play().catch(function (e) { self.emit('log', 'play(): ' + e.message); });
-    }, { once: true });
-    this.timer = setInterval(function () {
-      if (!alive()) return;
-      var t = el.currentTime, i = 0;
-      while (i + 1 < offsets.length && offsets[i + 1] <= t) i++;
-      if (i !== playingIndex) { playingIndex = i; self.emit('track', { index: self.base + i, title: list[i].title }); }
-      self.emit('time', { index: self.base + i, position: t - offsets[i], duration: list[i].duration });
-    }, 250);
+    pump().catch(function (e) { if (alive()) self.emit('error', e.message || String(e)); });
   };
 
   // Where playback is now: { index, position } in album terms, or null when stopped.
   QueuePlayer.prototype.position = function () {
-    if (!this.offsets || !this.el.src) return null;
-    var t = this.el.currentTime, o = this.offsets, i = 0;
+    if (!this.offsets || !this.ms) return null;
+    var t = this.element().currentTime, o = this.offsets, i = 0;
+    if (t < o[0] - 0.5) return { index: this.base, position: 0 };       // a restart that hasn't been positioned yet
     while (i + 1 < o.length && o[i + 1] <= t) i++;
     return { index: this.base + i, position: Math.max(0, t - o[i]) };
   };
 
-  QueuePlayer.prototype.stop = function () {
+  // keepElement: leave the element alone (the Cast framework owns it and loads the next source itself).
+  QueuePlayer.prototype.stop = function (keepElement) {
     this.gen++;
     clearInterval(this.timer);
-    if (this.onEnded) { this.el.removeEventListener('ended', this.onEnded); this.onEnded = null; }
-    if (this.el.src) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
+    if (this.onEnded && this.endedEl) this.endedEl.removeEventListener('ended', this.onEnded);
+    this.onEnded = null; this.endedEl = null; this.offsets = null;
+    var wasExternal = this.external;
+    this.ms = null; this.sb = null;
+    if (!keepElement && !wasExternal && this.el.src) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
   };
-  QueuePlayer.prototype.pause = function () { this.el.pause(); };
-  QueuePlayer.prototype.resume = function () { this.el.play(); };
+  QueuePlayer.prototype.pause = function () { this.element().pause(); };
+  QueuePlayer.prototype.resume = function () { this.element().play(); };
 
   global.QueuePlayer = QueuePlayer;
 })(window);

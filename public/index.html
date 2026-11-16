@@ -611,6 +611,9 @@
       $('clock').textContent = fmt(data.position) + ' / ' + fmt(data.duration);
     }
     if (type === 'ended') log('album finished');
+    // Paused or resumed elsewhere (Google Home, the TV remote): keep the button in step.
+    if (type === 'state' && data.state === 'paused') { paused = true; $('pause').textContent = 'Resume'; }
+    if (type === 'state' && data.state === 'playing') resetPause();
     if (type === 'state' && data.state === 'stopped') { $('nowTitle').textContent = 'Nothing playing'; $('nowTitle').className = 'muted'; $('progress').style.width = '0'; $('clock').textContent = ''; }
   }
   Demo.onReport(onReport);

@@ -28,6 +28,7 @@
 <script src="js/sample-accurate-sb.js"></script>
 <script src="js/mse-queue.js"></script>
 <script src="js/demo.js"></script>
+<script src="js/cast-session.js"></script>
 <script>
 (function () {
   'use strict';
@@ -41,7 +42,7 @@
     $('log').textContent = lines.join('\n');
     send({ type: 'log', data: m });
   }
-  Demo.onReport(function (type, data) {
+  function onReport(type, data) {
     if (type === 'log') return log(data);
     if (type === 'error') { log('ERROR ' + data); send({ type: 'error', data: data }); return; }
     if (type === 'track') $('title').textContent = data.title;
@@ -51,8 +52,10 @@
       if (Date.now() - lastTime < 1000) return;
       lastTime = Date.now();
     }
+    if (type === 'state' && data.state === 'stopped') { $('title').textContent = 'Gapless Cast demo'; $('progress').style.width = '0'; }
     send({ type: type, data: data });
-  });
+  }
+  Demo.onReport(onReport);
   Demo.loadAlbum().then(function (a) { $('album').textContent = a.title + ' · ' + a.artist; });
 
   // What the page's "Report your result" form includes: technical details only.
@@ -70,10 +73,16 @@
   }
   context.addCustomMessageListener(NS, function (ev) {
     if (ev.data && ev.data.cmd === 'info') { send({ type: 'device', data: deviceInfo() }); return; }
-    Demo.handle(ev.data, el);
+    session.handle(ev.data);
   });
+  // A real Cast media session: Google Home shows the album and can pause, seek
+  // and skip; the position it shows is inside the current track.
+  var session = CastSession(context, el, onReport);
+
   var options = new cast.framework.CastReceiverOptions();
-  options.skipPlayersLoad = true;        // our own MSE player, no Cast media pipeline libraries
+  options.skipPlayersLoad = true;        // our own MSE stream, or plain WebM files per track: no MPL/Shaka needed
+  var C = cast.framework.messages.Command;
+  options.supportedCommands = C.ALL_BASIC_MEDIA | (C.QUEUE_NEXT || 0) | (C.QUEUE_PREV || 0) | (C.STREAM_TRANSFER || 0);
   options.disableIdleTimeout = true;
   options.customNamespaces = {};
   options.customNamespaces[NS] = cast.framework.system.MessageType.JSON;

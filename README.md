@@ -33,6 +33,8 @@ On a Cast device the per-track gap is much longer, because each new media load g
 - With the sample-accurate SourceBuffer the album plays seamlessly. This includes a **speaker group** of two Chromecast Audios, and **adding a speaker to the stream while it plays**.
 - The same SourceBuffer wrapper was also tested underneath the gapless queue mode of a production streaming player engine, running unchanged above it. This album played gaplessly there too.
 
+**Google TV** (onn 4K, 2023, latest update, Nov 2026): the same picture. Per-track playback has gaps, the plain MSE queue glitches at every boundary, and the sample-accurate SourceBuffer is seamless.
+
 ### Results on other Cast devices
 
 Reports come in through the **Report your result** form on the demo page, which opens a pre-filled [device report](../../issues/new?template=device-report.yml). It includes the receiver's firmware and browser version, never the device's name.

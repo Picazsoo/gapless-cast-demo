@@ -226,7 +226,7 @@
     <p class="kicker">Google Cast · Opus · Media Source Extensions</p>
     <h1><span class="pre">Proving a point –</span> Gapless albums on Cast are a software problem, not a hardware one</h1>
     <p class="sub">The fix is a few hundred lines of JavaScript in the app's receiver page. No new devices, no server changes.</p>
-    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio, in speaker groups too</strong>, and the only thing that changes is the music app's JavaScript receiver page (the small web app the Chromecast loads). Nothing changes in how the music service encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page.</p>
+    <p class="lead">Live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, music apps put a gap or a click at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio and on a 2023 Google TV box, in speaker groups too</strong>, and the only thing that changes is the music app's JavaScript receiver page (the small web app the Chromecast loads). Nothing changes in how the music service encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page.</p>
     </div>
     <figure class="sleeves" aria-label="Albums meant to play without a break">
       <div class="sleeve-stack" id="sleeves"></div>
@@ -438,7 +438,7 @@
         </tbody>
       </table>
     </div>
-    <p class="muted">On a Chromecast Audio (2015, Chrome 90 inside), the gapless queue clicks audibly at every join. The sample-accurate mode is seamless on a single speaker and in a speaker group.</p>
+    <p class="muted">On a Chromecast Audio (2015, Chrome 90 inside), the gapless queue clicks audibly at every join. The sample-accurate mode is seamless on a single speaker and in a speaker group. A current Google TV box (onn 4K, 2023, latest update) behaves the same: gaps per track, a glitch at every join in the gapless queue, and seamless with the sample-accurate mode.</p>
   </section>
 
   <section id="others">
@@ -497,7 +497,7 @@
       <p>Yes. This demo seeks and switches modes mid-play, and an <a href="https://github.com/Picazsoo/chromecast-audio-gapless">earlier prototype</a> ran full Google Home controls (seek, skip, pause, adding speakers) through the same kind of pipeline.</p>
     </details>
     <details class="faq"><summary>What about speaker groups, or adding a speaker while it plays?</summary>
-      <p>Both tested on Chromecast Audio, and both stay gapless.</p>
+      <p>Both tested with Chromecast Audios, and both stay gapless.</p>
     </details>
     <details class="faq"><summary>Could it do crossfade too?</summary>
       <p>Probably, since the receiver has the decoded audio in hand. That's out of scope for this demo.</p>
@@ -516,7 +516,7 @@
       <p>Google's Cast sender library for web pages only runs there. Phones can't start a cast from a web page.</p>
     </details>
     <details class="faq"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
-      <p>Probably, but only the Chromecast Audio is confirmed so far. Please try it and <a href="#report">report your result</a>.</p>
+      <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in should work the same way, but haven't been tested yet. Please try it and <a href="#report">report your result</a>.</p>
     </details>
     <details class="faq"><summary>What does a device report send?</summary>
       <p>Only what you see before you submit it: the model you type in, your verdicts, and technical details such as the receiver's browser version and codec support. Device names like "Living room" are never read or sent.</p>

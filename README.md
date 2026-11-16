@@ -1,10 +1,10 @@
-# Proving a point: gapless albums on Cast are a software problem, not a hardware one
+# Gapless albums on Cast: a receiver-side demo, tested on a few devices so far
 
-**YouTube Music** on Cast puts a gap at every track change, even on albums made to play straight through. **The fix is a few hundred lines of JavaScript in its receiver page** (the small web app a Chromecast loads to play an app's audio). No new devices, no server changes.
+**YouTube Music** on Cast puts a gap at every track change, even on albums made to play straight through. On the devices tested so far, **a few hundred lines of JavaScript in the receiver page** (the small web app a Chromecast loads to play an app's audio) fix that, with no new devices and no server changes. I'd like to collect results from more Cast devices to see how far that holds, so [reports](#results-on-other-cast-devices) are very welcome, including failures.
 
 This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one complete orchestral movement cut into 14 tracks at arbitrary points mid-sound.
 
-The point is to show the change a music Cast receiver needs, in code small enough to read in one sitting:
+The point is to show a change that could work for a music Cast receiver, in code small enough to read in one sitting:
 
 - Use **one MediaSource and one SourceBuffer for the whole queue**, which is a gapless queue mode many players already have.
 - Put a **sample-accurate SourceBuffer** underneath it. This is a drop-in object that decodes the Opus, trims encoder delay and padding by sample count, and hands MSE lossless PCM (FLAC in fMP4).
@@ -43,6 +43,7 @@ Reports come in through the **Report your result** form on the demo page, which 
 |---|---|---|---|---|---|
 | Chromecast Audio (2015) | CrKey 1.56 / Chrome 90 | yes, 2 × Chromecast Audio | gap | click | **seamless** |
 | Google TV (onn 4K, 2023) | latest update, Nov 2026 | – (single device) | gap | glitch | **seamless** |
+| Google Home Mini (1st gen) | – | – | not tried | seamless (reported by a tester) | **too slow**: the Opus decoder runs at about 0.2× real time |
 
 ## How it works
 
@@ -128,7 +129,7 @@ flowchart LR
 1. Request the player's gapless queue mode for music queues too. You could do it only for albums whose tracks flow into each other, or for everything, because a correct join is harmless between unrelated songs.
 2. Install the sample-accurate SourceBuffer (or the same logic inside the player's own buffer layer) for Opus.
 
-No new hardware, no server changes, and the same per-track files.
+On the devices tested so far: no new hardware, no server changes, and the same per-track files.
 
 ## Run it
 

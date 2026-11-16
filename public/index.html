@@ -3,12 +3,12 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Proving a point: gapless YTM on Cast</title>
+<title>Gapless YTM albums on Cast: a working demo</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="description" content="YouTube Music gapless album playback on Google Cast devices is a receiver problem, not a hardware limit. Listen to the difference and see the small fix.">
-<meta property="og:title" content="Proving a point: gapless YTM on Cast">
-<meta property="og:description" content="YouTube Music gapless album playback on Google Cast devices is a receiver problem, not a hardware limit. Listen to the difference and see the small fix.">
+<meta name="description" content="Gapless album playback for YouTube Music on Google Cast works with a receiver-side change on the devices tested so far. Listen to the difference, try it on your own speakers and report back.">
+<meta property="og:title" content="Gapless YTM albums on Cast: a working demo">
+<meta property="og:description" content="Gapless album playback for YouTube Music on Google Cast works with a receiver-side change on the devices tested so far. Listen to the difference, try it on your own speakers and report back.">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://picazsoo.github.io/gapless-cast-demo/">
 <meta name="twitter:card" content="summary">
@@ -250,10 +250,10 @@
    <div class="hero-grid">
     <div>
     <p class="kicker">Google Cast · Opus · Media Source Extensions</p>
-    <h1><span class="pre">Proving a point –</span> YTM gapless albums on Cast are a software problem, not a hardware one</h1>
-    <p class="sub"><strong>YouTube Music</strong> on Cast plays albums with a gap at every track change. The fix is a few hundred lines of JavaScript in its receiver page. No new devices, no server changes.</p>
+    <h1><span class="pre">A working demo –</span> gapless YTM albums on Cast, with a change to the receiver only</h1>
+    <p class="sub"><strong>YouTube Music</strong> on Cast plays albums with a gap at every track change. On the devices I could test, a few hundred lines of JavaScript in the receiver page fix that, with no new devices and no server changes. I'd like to find out how far that holds on other Cast devices.</p>
     <p class="srcrow"><a class="srcbtn" href="https://github.com/Picazsoo/gapless-cast-demo"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Source on GitHub</span></a><span class="muted">MIT licence · our own code only · public-domain album</span></p>
-    <p class="lead">Concept albums, live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, YouTube Music puts a gap at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. The last one is seamless <strong>on a 2015 Chromecast Audio and on a 2023 Google TV box, in speaker groups too</strong>, and the only thing that changes is the JavaScript receiver page (the small web app the Chromecast loads), the one part YouTube Music would need to change. Nothing changes in how YouTube encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page.</p>
+    <p class="lead">Concept albums, live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, YouTube Music puts a gap at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. So far the last one has been seamless <strong>on a 2015 Chromecast Audio and on a 2023 Google TV box, in speaker groups too</strong>, but not yet on every device (see <a href="#faq-other-devices">which devices</a>). The only thing that changes is the JavaScript receiver page (the small web app the Chromecast loads), the one part YouTube Music would need to change. Nothing changes in how YouTube encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page, and a short report, good or bad, helps show where it works.</p>
     </div>
     <figure class="sleeves" aria-label="Albums meant to play without a break">
       <div class="sleeve-stack" id="sleeves"></div>
@@ -305,7 +305,7 @@
 
     <details class="card report" id="report">
       <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
-      <p class="muted">Results from many different devices make the case. This opens a pre-filled GitHub issue that you can review before posting. It includes your receiver's firmware and browser version, but never your device's name.</p>
+      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. This opens a pre-filled GitHub issue that you can review before posting. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
         <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
@@ -444,7 +444,7 @@
   SampleAccurateSB.enabled = true;   // before the player calls addSourceBuffer()
 &lt;/script&gt;</code></pre>
     <ul class="wins">
-      <li>No new hardware: it runs on the oldest, slowest Cast audio device.</li>
+      <li>No new hardware on the devices tested so far, including a 2015 Chromecast Audio.</li>
       <li>No server changes: the same per-track Opus files.</li>
       <li>Speaker groups stay in sync, including adding a speaker mid-album.</li>
       <li>It can be switched on selectively, only for albums meant to play gaplessly. Every other album and single track keeps today's per-track playback exactly as it is.</li>
@@ -486,7 +486,7 @@
         <p>Its Cast receiver streams encrypted AAC through Google's built-in Cast player, with Widevine DRM too. Again the page never sees decoded audio, and each track change goes through the player's queue.</p>
       </div>
     </div>
-    <p class="muted">That doesn't make gapless impossible for them, just harder. They could append tracks back to back into one encrypted buffer and let the device's decoder do the trimming, using the gapless information AAC files already carry. Only they can make that change, and nobody outside can test whether Cast devices splice encrypted audio cleanly. YouTube Music is in the unusual position where the fix is entirely in its own receiver's JavaScript. (Based on the public Cast receiver pages of each service, as observed in November 2026.)</p>
+    <p class="muted">That doesn't make gapless impossible for them, just harder. They could append tracks back to back into one encrypted buffer and let the device's decoder do the trimming, using the gapless information AAC files already carry. Only they can make that change, and nobody outside can test whether Cast devices splice encrypted audio cleanly. As far as I can tell from the outside, YouTube Music is in the unusual position where the fix could be entirely in its own receiver's JavaScript. (Based on the public Cast receiver pages of each service, as observed in November 2026.)</p>
   </section>
 
   <section id="faq">
@@ -505,21 +505,21 @@
       <p>Older devices like the Chromecast Audio don't get firmware updates any more. The receiver page, on the other hand, is loaded fresh every time you cast, so a fix there reaches every device at once.</p>
     </details>
     <details class="faq" id="faq-plain-queue"><summary>Why isn't the plain "gapless queue" good enough?</summary>
-      <p>Its joins land a few milliseconds off, which you hear as a click or a tiny hole. That's probably why the obvious approach was never shipped for music. See the <a href="#numbers">measurements</a>.</p>
+      <p>Its joins land a few milliseconds off, which you hear as a click or a tiny hole. That may be one reason the obvious approach hasn't been shipped for music. See the <a href="#numbers">measurements</a>.</p>
     </details>
 
     <h3 class="faq-group">Impact on YouTube Music</h3>
     <details class="faq" id="faq-normal-playback"><summary>Does this change anything for normal playback?</summary>
-      <p>No. It is switched on only for albums meant to play without a break. Everything else keeps playing track by track, exactly as today.</p>
+      <p>It wouldn't need to. It could be switched on only for albums meant to play without a break. Everything else would keep playing track by track, exactly as today.</p>
     </details>
     <details class="faq" id="faq-no-server-changes"><summary>Does YouTube have to change how it encodes or serves its files?</summary>
-      <p>No. The same Opus files are used, unchanged. Only the receiver page's JavaScript changes.</p>
+      <p>Not for this approach. The demo uses the same kind of per-track Opus files, unchanged, and only the receiver page's JavaScript changes.</p>
     </details>
     <details class="faq" id="faq-audio-quality"><summary>Does it lower the audio quality?</summary>
       <p>No. The Opus audio is decoded once, as it always is, and handed to the speaker losslessly as FLAC. Nothing is re-encoded.</p>
     </details>
     <details class="faq" id="faq-old-devices"><summary>Isn't it too heavy for old devices?</summary>
-      <p>It runs on a 2015 Chromecast Audio, the weakest Cast device around, and keeps only about 5 seconds of decoded audio buffered ahead of the playhead.</p>
+      <p>It runs well on a 2015 Chromecast Audio and keeps only about 5 seconds of decoded audio buffered ahead of the playhead.</p>
     </details>
     <details class="faq" id="faq-controls"><summary>Do seek, skip, pause and the Google Home controls still work?</summary>
       <p>Yes. When you cast this demo, Google Home (or any other Cast remote) shows the album as a normal media session and can pause, seek, and skip to the next or previous track. Even though the gapless modes play one continuous stream, Home shows the current track's title, its length and the position inside it, and the title changes at the exact moment the music crosses into the next track. Seeks and skips continue the same stream from the new point instead of reloading it. Tested on a Chromecast Audio and a Google TV box.</p>
@@ -544,7 +544,7 @@
       <p>Google's Cast sender library for web pages only runs there. Phones can't start a cast from a web page.</p>
     </details>
     <details class="faq" id="faq-other-devices"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
-      <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in should work the same way, but haven't been tested yet. Please try it and <a href="#report">report your result</a>.</p>
+      <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in may behave the same way, but haven't been tested yet. On a first-generation Google Home Mini the sample-accurate mode can't decode fast enough, so it doesn't work there for now. Please try it and <a href="#report">report your result</a>.</p>
     </details>
     <details class="faq" id="faq-device-report"><summary>What does a device report send?</summary>
       <p>Only what you see before you submit it: the model you type in, your verdicts, and technical details such as the receiver's browser version and codec support. Device names like "Living room" are never read or sent.</p>
@@ -558,10 +558,10 @@
       <p>I'm a mid-level Java/Kotlin backend developer with no formal IT education: I majored in plant physiology and plant molecular biology. This is an independent project, not affiliated with Google or YouTube.</p>
     </details>
     <details class="faq" id="faq-how-long"><summary>How long did this take?</summary>
-      <p>Two evenings, while juggling family life with two small kids, armed with Claude Code and Codex. That's partly the point: if one person from outside the field can get this working on a 2015 Chromecast Audio in that time, it's a small job for the team that owns the receiver.</p>
+      <p>Two evenings, while juggling family life with two small kids, armed with Claude Code and Codex. A production version would need much more testing across devices, but it suggests the core change is not a huge one.</p>
     </details>
     <details class="faq" id="faq-why-made"><summary>Why did you make this?</summary>
-      <p>Mostly to prove a point. Gapless playback on Chromecast is often dismissed as impossible, or blamed on the hardware. A public, working example that anyone can try on their own speakers should settle that quickly.</p>
+      <p>Gapless playback on Chromecast is often dismissed as impossible, or blamed on the hardware. It turned out to work on the devices I have, and I'd like to find out how widely that holds. A public example that anyone can try on their own speakers is the quickest way to collect those results.</p>
     </details>
     <details class="faq" id="faq-why-care"><summary>Why do you care so much about gapless?</summary>
       <p>I'm a big fan of Gorillaz, the Beatles, the Avalanches and Daft Punk, and our home has three Chromecast Audios that are playing most of the day. Demon Days, the Abbey Road medley, Since I Left You and Homework are built to flow from one track into the next, and every gap between them breaks my heart a little bit.</p>

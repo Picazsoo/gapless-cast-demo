@@ -13,7 +13,7 @@ The point is to show a change that could work for a music Cast receiver, in code
 
 The player code above the SourceBuffer doesn't change: one flag switches it. Two things to know if you put it under another player: it trims by sample count, so append windows are accepted but ignored, and a seek back into audio it has already evicted needs the player to clear the buffer (`remove()`) and append again from there, which is what this demo's queue does on every seek. For comparison there is also a **per-track (stock)** mode, which loads every track into its own MediaSource the usual non-gapless way. You can switch between all three modes while the album plays, and it carries on from the same spot.
 
-> Not affiliated with Google or YouTube. This repository contains no code from any Google receiver. Everything here is original and MIT-licensed, and the audio is public domain.
+> Not affiliated with Google or YouTube. This repository contains no code from any Google receiver. Our own code is MIT-licensed, the only third-party code is libopus compiled to JavaScript (see [Licence](#licence)), and the audio is public domain.
 
 ## Results
 
@@ -175,4 +175,6 @@ The whole movement (706.7 s) is cut into 14 tracks of 9 s to 202 s, at uneven sa
 
 ## Licence
 
-The code is under the MIT licence (see [LICENSE](LICENSE)). The recording and composition are in the public domain. Musopen asks, as a courtesy, that the recordings not be sold directly and that Musopen be credited.
+Our own code is under the MIT licence (see [LICENSE](LICENSE)).
+
+Third-party code, in `public/js/vendor/` with its licence files: `opusscript_native_nasm.js` from [opusscript](https://github.com/abalabahaha/opusscript) 0.1.1 (MIT, `LICENSE.opusscript`), which is [libopus](https://opus-codec.org/) by Xiph.Org and contributors compiled to JavaScript (BSD 3-clause, `COPYING.libopus`). The receiver uses it to decode Opus on devices without Web Audio and to re-encode the joins in the Opus bridge option. The recording and composition are in the public domain. Musopen asks, as a courtesy, that the recordings not be sold directly and that Musopen be credited.

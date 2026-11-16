@@ -20,5 +20,9 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
+Third-party code in public/js/vendor/ is not covered by this licence: it keeps
+its own licences (opusscript: MIT, LICENSE.opusscript; libopus: BSD 3-clause,
+COPYING.libopus). See public/js/vendor/README.md.
+
 The audio in public/album/ is not covered by this licence: it is in the public
 domain. See public/album/SOURCE.txt.

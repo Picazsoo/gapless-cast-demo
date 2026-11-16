@@ -769,13 +769,13 @@
     if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return; }
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
     var noFlac = target() === 'cast'
-      ? noSampleAccurate.cast || !!(castDevice && castDevice.mse && castDevice.mse.flacMp4 === false)
+      ? noSampleAccurate.cast || !!(castDevice && (castDevice.sampleAccurate === false || (castDevice.mse && castDevice.mse.flacMp4 === false)))
       : noSampleAccurate.local || !SampleAccurateSB.supported();
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
-      (noFlac ? 'not available (no FLAC in MSE here, so that mode ran as the plain gapless queue)' : v('v_sa'));
+      (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa'));
     var receiver = target() === 'cast' && castDevice
       ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
-        '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nScreen: ' + castDevice.screen
+        '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nWeb Audio: ' + castDevice.webAudio + ', WebAssembly: ' + castDevice.webAssembly + '\nScreen: ' + castDevice.screen
       : target() === 'cast' ? 'Cast device; its details were not available (connect with Cast before sending)'
       : 'Played in this browser, not on a Cast device: ' + navigator.userAgent;
     var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),

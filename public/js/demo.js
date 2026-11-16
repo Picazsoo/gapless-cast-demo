@@ -31,7 +31,7 @@
       if (gen !== startGen) return;
       var fellBack = false;
       if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
-        report('error', 'sample-accurate mode needs FLAC in MSE, which this browser lacks; using the plain gapless queue');
+        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this browser lacks; using the plain gapless queue');
         mode = 'plain'; fellBack = true;
       }
       SampleAccurateSB.enabled = mode === 'sample-accurate';

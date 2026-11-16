@@ -69,6 +69,9 @@
       userAgent: navigator.userAgent,
       capabilities: caps || {},
       mse: { opusWebm: mse('audio/webm; codecs="opus"'), flacMp4: mse('audio/mp4; codecs="flac"') },
+      webAudio: !!(window.OfflineAudioContext || window.webkitOfflineAudioContext),
+      webAssembly: typeof WebAssembly === 'object',
+      sampleAccurate: SampleAccurateSB.supported(),
       screen: screen.width + 'x' + screen.height
     };
   }

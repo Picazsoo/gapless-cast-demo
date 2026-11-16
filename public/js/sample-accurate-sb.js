@@ -32,13 +32,22 @@
   'use strict';
   var MS = global.MediaSource;
   var G = global.GaplessMux;
-  var API = global.SampleAccurateSB = { enabled: false, onLog: null, supported: function () { return false; } };
+  var API = global.SampleAccurateSB = { enabled: false, onLog: null, supported: function () { return false; }, missing: function () { return 'MediaSource'; } };
   if (!MS || !G) return;
   var SR = 48000, EB = G.EBML, FLAC_MIME = 'audio/mp4; codecs="flac"';
   var SNAP = 0.25 * SR;                 // tracks placed this close together are joined exactly
   var AHEAD = 5;                        // seconds of PCM kept ahead in the real SourceBuffer
   var ID_EBML = 0x1A45DFA3;
-  API.supported = function () { try { return MS.isTypeSupported(FLAC_MIME); } catch (e) { return false; } };
+  var Offline = global.OfflineAudioContext || global.webkitOfflineAudioContext;
+  // What this device lacks for sample-accurate playback, or '' when it has everything.
+  // (Speaker-only Cast devices such as the Google Home Mini have no Web Audio, so
+  // nothing to decode Opus with in the page.)
+  API.missing = function () {
+    if (!Offline) return 'Web Audio (OfflineAudioContext)';
+    try { if (!MS.isTypeSupported(FLAC_MIME)) return 'FLAC in MSE'; } catch (e) { return 'FLAC in MSE'; }
+    return '';
+  };
+  API.supported = function () { return !API.missing(); };
 
   function log(m) { if (API.onLog) API.onLog(m); else console.log('[sample-accurate] ' + m); }
 
@@ -53,7 +62,7 @@
   URL.revokeObjectURL = function (u) { urlToMs.delete(u); return origRevoke.apply(this, arguments); };
 
   var decodeCtx = null;
-  function ctx() { return decodeCtx || (decodeCtx = new OfflineAudioContext(2, 1, SR)); }
+  function ctx() { return decodeCtx || (decodeCtx = new (global.OfflineAudioContext || global.webkitOfflineAudioContext)(2, 1, SR)); }
   function decode(bytes) {
     return new Promise(function (resolve, reject) {
       var p = ctx().decodeAudioData(bytes.buffer, resolve, reject);
@@ -441,7 +450,7 @@
   var origAdd = MS.prototype.addSourceBuffer, origRemoveSb = MS.prototype.removeSourceBuffer, origEos = MS.prototype.endOfStream;
   MS.prototype.addSourceBuffer = function (type) {
     if (!API.enabled || !/opus/i.test(type)) return origAdd.call(this, type);
-    if (!MS.isTypeSupported(FLAC_MIME)) { log('no MSE FLAC support; not wrapping'); return origAdd.call(this, type); }
+    if (!API.supported()) { log('no ' + API.missing() + ' here; not wrapping'); return origAdd.call(this, type); }
     var real = origAdd.call(this, FLAC_MIME), p = new WrappedSourceBuffer(this, real);
     proxyOf.set(real, p);
     (proxiesOf.get(this) || proxiesOf.set(this, []).get(this)).push(p);

@@ -80,7 +80,7 @@
       log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
       mode = g.mode;
       if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
-        report('error', 'sample-accurate mode needs FLAC in MSE, which this device lacks; playing the plain gapless queue instead');
+        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this device lacks; playing the plain gapless queue instead');
         mode = 'plain';
       }
       report('state', { state: g.paused ? 'paused' : 'playing', mode: mode, fallback: mode !== g.mode });

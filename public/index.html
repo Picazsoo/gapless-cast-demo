@@ -191,7 +191,13 @@
 
   /* ---------- report ---------- */
   .report { margin-top: 18px; }
-  .report h3 { margin: 0 0 4px; font-size: 17px; }
+  .report h3 { margin: 0; font-size: 17px; display: inline; }
+  .report summary { cursor: pointer; list-style: none; position: relative; padding-right: 28px; }
+  .report summary::-webkit-details-marker { display: none; }
+  .report summary::after { content: "+"; position: absolute; right: 4px; top: -2px; font-size: 20px; color: var(--muted); }
+  .report[open] summary::after { content: "\2212"; }
+  .report[open] summary { margin-bottom: 8px; }
+  .report summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .report > p { margin: 0 0 12px; font-size: 14px; max-width: 70ch; }
   .rrow { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: end; }
   .rrow label.grow { flex: 1; min-width: 240px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
@@ -290,8 +296,8 @@
     </div>
     <p class="hint">Recording: Beethoven, Symphony No. 5, IV. Allegro, by the Skidmore College Orchestra (public domain, via Musopen). The whole movement, cut into tracks from 9 s to 3:22 long at arbitrary points mid-sound, and each one is encoded separately as Opus in WebM, just as music services stream them.</p>
 
-    <div class="card report" id="report">
-      <h3>Tried it on your own Cast device? Report your result</h3>
+    <details class="card report" id="report">
+      <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
       <p class="muted">Results from many different devices make the case. This opens a pre-filled GitHub issue that you can review before posting. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
         <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
@@ -309,7 +315,7 @@
       </div>
       <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
       <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><button class="primary" id="rSend">Open GitHub issue</button></div>
-    </div>
+    </details>
   </section>
 
   <section id="what">
@@ -846,7 +852,7 @@
   var items = document.querySelectorAll('details.faq[id]');
   function openFromHash() {
     var id = decodeURIComponent(location.hash.slice(1)), d = id && document.getElementById(id);
-    if (d && d.matches('details.faq')) { d.open = true; d.scrollIntoView({ block: 'start' }); }
+    if (d && d.matches('details.faq, details#report')) { d.open = true; d.scrollIntoView({ block: 'start' }); }
   }
   items.forEach(function (d) {
     d.addEventListener('toggle', function () {
@@ -880,7 +886,7 @@
     el.appendChild(a);
   }
   document.querySelectorAll('section[id] > h2').forEach(function (h) { add(h, h.parentNode.id, h.textContent.trim()); });
-  var r = document.querySelector('#report > h3'); if (r) add(r, 'report', r.textContent.trim());
+  var r = document.querySelector('#report > summary > h3'); if (r) add(r, 'report', r.textContent.trim());
   var pl = document.getElementById('pipelines'); if (pl) add(pl, 'pipelines', pl.textContent.trim());
   document.querySelectorAll('details.faq[id] > summary').forEach(function (s) { add(s, s.parentNode.id, s.textContent.trim()); });
 })();

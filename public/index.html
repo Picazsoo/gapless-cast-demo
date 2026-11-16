@@ -790,7 +790,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   // The player log without the Cast device's name; maxEncoded keeps only the latest lines that fit a URL.
   function logText(maxEncoded) {
     var t = $('log').textContent;
-    castNames.forEach(function (nm) { t = t.split(nm).join('[device name]'); });
+    // longest first: a name that contains another ("Living Room Alice" / "Living Room") must go whole
+    castNames.slice().sort(function (x, y) { return y.length - x.length; }).forEach(function (nm) { t = t.split(nm).join('[device name]'); });
     if (maxEncoded) {
       var lines = t.split('\n'), out = [];
       for (var i = lines.length - 1; i >= 0; i--) {

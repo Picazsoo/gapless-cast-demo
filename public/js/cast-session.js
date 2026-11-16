@@ -83,7 +83,7 @@
         report('error', 'sample-accurate mode needs FLAC in MSE, which this device lacks; playing the plain gapless queue instead');
         mode = 'plain';
       }
-      report('state', { state: 'playing', mode: mode, fallback: mode !== g.mode });
+      report('state', { state: g.paused ? 'paused' : 'playing', mode: mode, fallback: mode !== g.mode });
       kind = 'stream';
       SampleAccurateSB.enabled = mode === 'sample-accurate';
       player.play(album.tracks, g.index, g.offset, mode === 'stock', { external: true });
@@ -100,7 +100,8 @@
     // ---------------------------------------------- seeks and skips (stream)
     // Several presses in a row (dragging the seek bar sends dozens of SEEKs,
     // or next, next, next) collapse into one restart.
-    // play: also resume if paused (the page's Play / Go); controller seeks keep the paused state.
+    // play: true = play afterwards (the page's Play / Go, or a seek asking to start),
+    // false = pause afterwards (a seek asking to pause), undefined = keep the current state.
     function restartAt(index, offset, delay, play) {
       index = Math.max(0, Math.min(album.tracks.length - 1, index));
       offset = Math.max(0, Math.min(offset, album.tracks[index].duration - 1));
@@ -108,9 +109,11 @@
       clearTimeout(pendingTimer);
       pendingTimer = setTimeout(function () {
         var x = pending; pending = null;
-        if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset); return; }
+        var wasPaused = pm.getPlayerState() === M.PlayerState.PAUSED;
+        if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset, play === false); return; }
         showTrack(x.index);
-        if (play && pm.getPlayerState() === M.PlayerState.PAUSED) attempt('play', function () { pm.play(); });
+        if (play === true && wasPaused) attempt('play', function () { pm.play(); });
+        else if (play === false && !wasPaused) attempt('pause', function () { pm.pause(); });
       }, delay == null ? 600 : delay);
       attempt('broadcastStatus', function () { pm.broadcastStatus(true); });
     }
@@ -137,6 +140,8 @@
       var w = where(), t = req.currentTime;
       if (req.relativeTime != null) t = w.position + req.relativeTime;
       if (t == null) return req;
+      // What the controller wants afterwards: start, pause, or (unspecified) stay as it is.
+      var after = req.resumeState === 'PLAYBACK_START' ? true : req.resumeState === 'PLAYBACK_PAUSE' ? false : undefined;
       if (mode === 'stock') {
         // Per-track: the item is the track, so seek natively, unless the target was
         // already evicted behind the playhead (the queue only fills forwards): then
@@ -145,11 +150,11 @@
         for (var k = 0; k < r.length && !ok; k++) if (t >= r.start(k) && t <= r.end(k)) ok = true;
         if (ok) return req;
         log('seek back to ' + t.toFixed(1) + ' s: no longer buffered, reloading the track from there');
-        loadStream('stock', w.index, t, pm.getPlayerState() === M.PlayerState.PAUSED);
+        loadStream('stock', w.index, t, after === undefined ? pm.getPlayerState() === M.PlayerState.PAUSED : !after);
         return null;
       }
       log('seek to ' + t.toFixed(1) + ' s in track ' + (w.index + 1));
-      restartAt(w.index, t);
+      restartAt(w.index, t, undefined, after);
       return null;
     });
     attempt('next/previous buttons', function () {

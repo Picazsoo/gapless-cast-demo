@@ -603,11 +603,12 @@
   function blank() { return { index: -1, title: '', position: 0, duration: 0, paused: false }; }
   var players = { local: blank(), cast: blank() };
   var noSampleAccurate = { local: false, cast: false };   // that target fell back to the plain queue
+  var modes = { local: pick('mode'), cast: pick('mode') };  // the mode each target plays in (what you picked, or its fallback)
   function target() { return pick('target'); }
   function render() {
     var s = players[target()];
     nowIndex = s.index; paused = s.paused;
-    if (s.fallback) { document.querySelector('input[name=mode][value="' + s.fallback + '"]').checked = true; s.fallback = null; }
+    document.querySelector('input[name=mode][value="' + modes[target()] + '"]').checked = true;
     $('pause').textContent = s.paused ? 'Resume' : 'Pause';
     [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index ? 'now' : ''; });
     $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
@@ -634,7 +635,7 @@
     if (type === 'state' && data.state === 'paused') s.paused = true;
     if (type === 'state' && data.state === 'playing') s.paused = false;
     if (type === 'state' && data.state === 'stopped') players[from] = blank();
-    if (type === 'state' && data.fallback) { s.fallback = data.mode; noSampleAccurate[from] = true; }
+    if (type === 'state' && data.fallback) { modes[from] = data.mode; noSampleAccurate[from] = true; }
     if (from === target()) render();
   }
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
@@ -680,6 +681,7 @@
       $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
       $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
       if (ev.sessionState === 'SESSION_ENDED') {
+        castDevice = null; $('rDevice').textContent = 'Connect with Cast first, so the receiver\'s details are included.';
         if (!userEnded) log('Cast session ended. If speakers were added to it, it now runs on a group named like "<speaker> + 1": press Cast and pick that to control it again.');
         userEnded = false;
       }
@@ -759,10 +761,11 @@
       : noSampleAccurate.local || !SampleAccurateSB.supported();
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
       (noFlac ? 'not available (no FLAC in MSE here, so that mode ran as the plain gapless queue)' : v('v_sa'));
-    var receiver = castDevice
+    var receiver = target() === 'cast' && castDevice
       ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
         '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nScreen: ' + castDevice.screen
-      : 'Not connected to a Cast device; played in the browser: ' + navigator.userAgent;
+      : target() === 'cast' ? 'Cast device; its details were not available (connect with Cast before sending)'
+      : 'Played in this browser, not on a Cast device: ' + navigator.userAgent;
     var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
               device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiver, notes: $('rNotes').value.trim() };
     var url = 'https://github.com/' + REPO + '/issues/new?' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
@@ -771,7 +774,7 @@
 
   // Switching mode while playing restarts the same spot in the new mode.
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
-    r.onchange = function () { if (this.checked) send({ cmd: 'mode', mode: this.value }); };
+    r.onchange = function () { if (this.checked) { modes[target()] = this.value; send({ cmd: 'mode', mode: this.value }); } };
   });
 })();
 </script>

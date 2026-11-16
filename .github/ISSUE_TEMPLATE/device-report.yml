@@ -37,6 +37,12 @@ body:
       description: Firmware and browser version reported by the receiver itself.
       render: text
   - type: textarea
+    id: log
+    attributes:
+      label: Player log (optional, filled in by the page)
+      description: The most recent lines of the page's player log, with the device's name removed.
+      render: text
+  - type: textarea
     id: notes
     attributes:
       label: Notes

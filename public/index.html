@@ -603,12 +603,12 @@
   function blank() { return { index: -1, title: '', position: 0, duration: 0, paused: false }; }
   var players = { local: blank(), cast: blank() };
   var noSampleAccurate = { local: false, cast: false };   // that target fell back to the plain queue
-  var modes = { local: pick('mode'), cast: pick('mode') };  // the mode each target plays in (what you picked, or its fallback)
+  var chosen = pick('mode');   // the mode you picked; a target without sample-accurate support shows (and plays) plain instead
   function target() { return pick('target'); }
   function render() {
     var s = players[target()];
     nowIndex = s.index; paused = s.paused;
-    document.querySelector('input[name=mode][value="' + modes[target()] + '"]').checked = true;
+    document.querySelector('input[name=mode][value="' + (noSampleAccurate[target()] && chosen === 'sample-accurate' ? 'plain' : chosen) + '"]').checked = true;
     $('pause').textContent = s.paused ? 'Resume' : 'Pause';
     [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index ? 'now' : ''; });
     $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
@@ -635,7 +635,7 @@
     if (type === 'state' && data.state === 'paused') s.paused = true;
     if (type === 'state' && data.state === 'playing') s.paused = false;
     if (type === 'state' && data.state === 'stopped') players[from] = blank();
-    if (type === 'state' && data.fallback) { modes[from] = data.mode; noSampleAccurate[from] = true; }
+    if (type === 'state' && data.fallback) noSampleAccurate[from] = true;
     if (from === target()) render();
   }
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
@@ -774,7 +774,7 @@
 
   // Switching mode while playing restarts the same spot in the new mode.
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
-    r.onchange = function () { if (this.checked) { modes[target()] = this.value; send({ cmd: 'mode', mode: this.value }); } };
+    r.onchange = function () { if (this.checked) { chosen = this.value; send({ cmd: 'mode', mode: this.value }); } };
   });
 })();
 </script>

@@ -211,9 +211,10 @@
     async appendReal(bytes, gen) {
       if (gen === undefined) gen = this.gen;
       for (var n = 0; ; n++) {
-        if (this.dead || this.gen !== gen) return;
+        if (this.dead || this.gen !== gen) return false;
         var err = await this.realOp(function () { this.real.appendBuffer(bytes); }.bind(this));
-        if (!err || this.dead || this.gen !== gen) return;
+        if (!err) return true;                                   // true: the real buffer has it
+        if (this.dead || this.gen !== gen) return false;
         if (err.name !== 'QuotaExceededError' || n >= 5) throw err;
         if (n === 0) log('MSE full; making room and retrying');
         var el = this.element(), rb = this.real.buffered, cut = el ? el.currentTime - 2 : 0;
@@ -315,8 +316,10 @@
         }
       }
       if (codecDelayNs) preskip = Math.round(codecDelayNs * 48e-6);
-      if (!this.headSent) {                       // one init segment for the whole stream; pre-skip is ours to cut
-        this.headSent = true;
+      // One init segment for the whole stream (pre-skip is ours to cut). It counts as sent
+      // only once the real buffer has accepted it: an aborted or failed one is sent again.
+      if (!this.headSent && !this.initPending) {
+        this.initPending = true;
         out.push({ init: concat([h.ebml, new Uint8Array([0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]), h.info, tr]) });
       }
       var durRaw = 0;                             // Info/Duration, to know after a seek how close the end is
@@ -470,7 +473,7 @@
           chain = chain.then(function () { var o2 = []; return withCodec(function () { return self.bridge(self.lib, it.job, o2); }).then(function () { if (!self.dead && self.gen === gen) return self.send(o2, gen); }); });
           return;
         }
-        if (it.init) { push(); chain = chain.then(function () { if (self.dead) return; try { self.real.timestampOffset = -1; } catch (e) {} return self.appendReal(it.init, gen); }); return; }
+        if (it.init) { push(); chain = chain.then(function () { if (self.dead) return; try { self.real.timestampOffset = -1; } catch (e) {} return self.appendReal(it.init, gen).then(function (ok) { if (ok) self.headSent = true; }, function (e) { throw e; }).finally(function () { self.initPending = false; }); }); return; }
         if (it.aws !== undefined) { push(); chain = chain.then(function () { try { self.real.appendWindowStart = 0; self.real.appendWindowStart = it.aws; } catch (e) { log('appendWindowStart: ' + e.message); } }); return; }
         if (batch.length && (it.out - batch[0].out > SR || it.pad)) push();
         batch.push(it);
@@ -511,7 +514,8 @@
   MS.prototype.endOfStream = function (err) {
     var p = proxies.get(this), ms = this, args = arguments;
     if (err || !p || p.dead) return origEos.apply(this, args);
-    p.finish().then(function () { if (!p.dead && !p.failed && ms.readyState === 'open') { log('all audio handed to MSE; endOfStream()'); origEos.apply(ms, args); } });
+    var gen = p.gen;                              // a seek (abort) after this request cancels it
+    p.finish().then(function () { if (!p.dead && !p.failed && p.gen === gen && ms.readyState === 'open') { log('all audio handed to MSE; endOfStream()'); origEos.apply(ms, args); } });
   };
   API.BridgeSourceBuffer = BridgeSourceBuffer;
 })(window);

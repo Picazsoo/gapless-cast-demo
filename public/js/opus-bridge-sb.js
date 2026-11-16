@@ -32,9 +32,9 @@
   if (!MS || !G) return;
   var SR = 48000, EB = G.EBML, OPUS_MIME = 'audio/webm; codecs="opus"';
   var KA = 3, KB = 6;               // packets of A / B replaced by the bridge
-  var WUP = 3, PRE = 4;             // encoder warm-up frames; decoder pre-roll packets before them
+  var WUP = 1, PRE = 2;             // encoder warm-up frames; decoder pre-roll packets before them
   var SNAP = 0.25 * SR;             // tracks placed this close together are joined
-  var BITRATE = 192000, COMPLEXITY = 5;
+  var BITRATE = 192000, COMPLEXITY = 2;   // 2: about 1.6x faster than 5, same quality for 0.2 s of audio
   var HOLD = 8 * SR;                // a seek this close to a track's end waits for the bridge before playing
   API.supported = function () { try { return MS.isTypeSupported(OPUS_MIME); } catch (e) { return false; } };
   API.stats = { joins: 0, ms: 0 };
@@ -132,7 +132,14 @@
       this.cur = null;           // current track: {preskip, tso, raw, d, held[], ring[], pend[], pad, endRaw, state}
       this.ranges = [];          // what the player appended, in its own coordinates (samples)
       this.ops = Promise.resolve(); this.gen = 0;
-      loadLib().catch(function (e) { log('ERROR ' + e.message); });
+      // Load libopus now and run it once on silence: on a slow device the first call
+      // (while the JavaScript engine compiles it) is several times slower than later ones.
+      loadLib().then(function (o) {
+        var t0 = Date.now(), z = new Int16Array(960 * 2);
+        o.h._encoder_ctl(4010, COMPLEXITY);
+        for (var i = 0; i < 3; i++) decodeAll(o, [encodeFrame(o, z, 0, 960)]);
+        log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms)');
+      }).catch(function (e) { log('ERROR ' + e.message); });
       log('SourceBuffer wrapped: one continuous Opus stream, re-encoded only at the joins');
     }
     get timestampOffset() { return this._tso; }

@@ -327,7 +327,7 @@
 
     <details class="card report" id="report">
       <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
-      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting, or copy the report as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
+      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting. No GitHub account? Send the same report through a short form instead, or copy it as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
         <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
@@ -650,7 +650,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var REPO = 'Picazsoo/gapless-cast-demo';
   // Google Form for reports without a GitHub account. Empty url hides its button.
   // entries: the form's entry ids (from its "Get pre-filled link") for each report field.
-  var FORM = { url: '', entries: { device: '', group: '', results: '', receiver: '', notes: '', log: '' } };
+  var FORM = { url: 'https://docs.google.com/forms/d/e/1FAIpQLSfPxL9F4Qd-xPFBDiurKdM92CQpa5xqFlk23IU2rhw1cMbNlA/viewform',
+    entries: { device: 'entry.974620066', group: 'entry.527471063', results: 'entry.716640634', receiver: 'entry.1118530996', notes: 'entry.1887218654', log: 'entry.1921907722' } };
   var castDevice = null;
   function shortUa(ua) { var m = /CrKey\/[\d.]+/.exec(ua || ''), c = /Chrome\/[\d.]+/.exec(ua || ''); return [m && m[0], c && c[0]].filter(Boolean).join(', ') || (ua || '').slice(0, 80); }
   function log(m) { var l = $('log'); l.textContent += new Date().toTimeString().slice(0, 8) + '  ' + m + '\n'; l.scrollTop = l.scrollHeight; }

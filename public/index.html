@@ -110,6 +110,13 @@
   ol#tracks li:hover { background: var(--soft); }
   ol#tracks li.now { background: var(--soft); font-weight: 600; }
   ol#tracks li .d { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .anchor { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-left: 6px; border-radius: 6px; color: var(--muted); opacity: 0; text-decoration: none; vertical-align: middle; transition: opacity .15s; flex: none; position: relative; }
+  .anchor svg { width: 15px; height: 15px; }
+  :is(h2, h3, summary):hover > .anchor, .anchor:focus-visible, .anchor.copied { opacity: 1; }
+  .anchor:hover { color: var(--accent); background: var(--soft); }
+  .anchor.copied::after { content: "Link copied"; position: absolute; left: 100%; margin-left: 6px; white-space: nowrap; font: 600 12px/1 system-ui, sans-serif; color: var(--accent); }
+  @media (hover: none) { .anchor { opacity: .45; } }
+  section[id], #report, #pipelines { scroll-margin-top: 16px; }
   .faq-group { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 28px 0 8px; font-weight: 600; }
   details.faq { border-top: 1px solid var(--line); scroll-margin-top: 16px; }
   details.faq:last-of-type { border-bottom: 1px solid var(--line); }
@@ -336,7 +343,7 @@
       </div>
     </div>
 
-    <h3 style="margin:34px 0 0;font-size:18px">How the audio gets to the speaker</h3>
+    <h3 id="pipelines" style="margin:34px 0 0;font-size:18px">How the audio gets to the speaker</h3>
     <div class="stacks" role="group" aria-label="Three playback pipelines compared">
       <div class="stack">
         <h3><i class="dot" style="background:var(--bad)"></i>YouTube Music on Cast today</h3>
@@ -796,6 +803,31 @@
   });
   window.addEventListener('hashchange', openFromHash);
   openFromHash();
+})();
+</script>
+<script>
+// Small link icons next to headings: click jumps there, puts the #anchor in the URL and copies the link.
+(function () {
+  var icon = '<svg viewBox="0 0 16 16" aria-hidden="true" fill="currentColor"><path d="M7.78 3.22a3.5 3.5 0 0 1 4.95 4.95l-1.5 1.5a.75.75 0 1 1-1.06-1.06l1.5-1.5a2 2 0 0 0-2.83-2.83l-2.5 2.5a2 2 0 0 0 0 2.83.75.75 0 1 1-1.06 1.06 3.5 3.5 0 0 1 0-4.95zM8.22 12.78a3.5 3.5 0 0 1-4.95-4.95l1.5-1.5a.75.75 0 1 1 1.06 1.06l-1.5 1.5a2 2 0 0 0 2.83 2.83l2.5-2.5a2 2 0 0 0 0-2.83.75.75 0 1 1 1.06-1.06 3.5 3.5 0 0 1 0 4.95z"/></svg>';
+  function add(el, id, label) {
+    var a = document.createElement('a');
+    a.className = 'anchor'; a.href = '#' + id; a.innerHTML = icon;
+    a.setAttribute('aria-label', 'Link to ' + label);
+    a.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var url = location.href.split('#')[0] + '#' + id;
+      try {
+        navigator.clipboard.writeText(url).then(function () {
+          a.classList.add('copied'); setTimeout(function () { a.classList.remove('copied'); }, 1400);
+        }, function () {});
+      } catch (err) {}
+    });
+    el.appendChild(a);
+  }
+  document.querySelectorAll('section[id] > h2').forEach(function (h) { add(h, h.parentNode.id, h.textContent.trim()); });
+  var r = document.querySelector('#report > h3'); if (r) add(r, 'report', r.textContent.trim());
+  var pl = document.getElementById('pipelines'); if (pl) add(pl, 'pipelines', pl.textContent.trim());
+  document.querySelectorAll('details.faq[id] > summary').forEach(function (s) { add(s, s.parentNode.id, s.textContent.trim()); });
 })();
 </script>
 </body>

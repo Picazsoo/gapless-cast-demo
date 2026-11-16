@@ -1,6 +1,6 @@
 # Proving a point: gapless albums on Cast are a software problem, not a hardware one
 
-Aimed at **YouTube Music**, whose Cast receiver puts a gap at every track change, even on albums made to play straight through. **The fix is a few hundred lines of JavaScript in its receiver page** (the small web app a Chromecast loads to play an app's audio). No new devices, no server changes.
+**YouTube Music** on Cast puts a gap at every track change, even on albums made to play straight through. **The fix is a few hundred lines of JavaScript in its receiver page** (the small web app a Chromecast loads to play an app's audio). No new devices, no server changes.
 
 This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one complete orchestral movement cut into 14 tracks at arbitrary points mid-sound.
 

@@ -288,7 +288,7 @@
       <div class="castmeta"><span id="status"></span><details class="appid"><summary>Receiver app ID</summary><input id="appId" size="10" placeholder="ABCD1234" aria-label="Receiver app ID"></details></div>
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
-        <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks remain.</span></label>
+        <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks might remain, depending on the device.</span></label>
         <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it:</span>
           <div class="sub">
             <label><input type="radio" name="mode" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
@@ -397,7 +397,7 @@
         <div class="box">audio element</div>
         <div class="down">↓</div>
         <div class="box">speaker / group</div>
-        <div class="out meh">No reload, but small gaps and clicks</div>
+        <div class="out meh">No reload, but small gaps and clicks may remain</div>
       </div>
       <div class="stack">
         <h3><i class="dot" style="background:var(--good)"></i>Sample-accurate (this demo)</h3>
@@ -520,7 +520,7 @@
       <p>Older devices like the Chromecast Audio don't get firmware updates any more. The receiver page, on the other hand, is loaded fresh every time you cast, so a fix there reaches every device at once.</p>
     </details>
     <details class="faq" id="faq-plain-queue"><summary>Why isn't the plain "gapless queue" good enough?</summary>
-      <p>Its joins land a few milliseconds off, which you hear as a click or a tiny hole. That may be one reason the obvious approach hasn't been shipped for music. See the <a href="#numbers">measurements</a>.</p>
+      <p>Its joins land a few milliseconds off. On the Chromecast Audio and the onn 4K that is audible as a click or a tiny hole, but it depends on the device: one tester reports it sounding flawless on a Google Home Mini. That may be one reason the obvious approach hasn't been shipped for music. See the <a href="#numbers">measurements</a>.</p>
     </details>
 
     <h3 class="faq-group">Impact on YouTube Music</h3>

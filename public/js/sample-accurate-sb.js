@@ -192,9 +192,10 @@
           var started;
           try { started = fn(); } catch (e) { log('real SourceBuffer: ' + e.name + ' ' + e.message); resolve(e); return; }
           if (started === false || !real.updating) { resolve(); return; }
-          function failed() { log('ERROR the real SourceBuffer rejected a FLAC segment'); }
+          var error = false;
+          function failed() { error = true; }
           real.addEventListener('error', failed, { once: true });
-          real.addEventListener('updateend', function () { real.removeEventListener('error', failed); resolve(); }, { once: true });
+          real.addEventListener('updateend', function () { real.removeEventListener('error', failed); resolve(error ? { error: true } : undefined); }, { once: true });
         });
       });
       return this.ops;
@@ -358,21 +359,39 @@
         });
         return;
       }
-      var to = Math.min(seg.abs1, from + SR), bytes = this.slice(seg, from, to);
+      var to = Math.min(seg.abs1, from + SR), bytes = this.slice(seg, from, to), started = false;
       this.busy = true;
       this.queueReal(function () {
         if (self.dead || seg.ver !== ver) return false;
-        try { self.real.appendBuffer(bytes); }
+        try { self.real.appendBuffer(bytes); started = true; }
         catch (e) {
           self.backoff = Date.now() + 300;
           if (e.name === 'QuotaExceededError') {
             if (self.ahead > 2) { self.ahead = Math.max(2, self.ahead - 0.5); log('MSE full; keeping at most ' + self.ahead.toFixed(1) + ' s ahead in the real buffer'); }
-          } else { log('FLAC append failed: ' + e.name + ' ' + e.message); seg.sent = true; }
+          } else self.appendFailed(e.name + ' ' + e.message);
           return false;
         }
-        self.progress = { seg: seg, to: to };
-        if (to >= seg.abs1) { seg.sent = true; seg.pcm = null; self.progress = null; }
-      }).then(function () { self.busy = false; self.feed(); });
+      }).then(function (r) {
+        self.busy = false;
+        if (!started) return self.feed();
+        if (r && r.error) return self.appendFailed('the real SourceBuffer rejected the segment');
+        self.failures = 0;                                  // delivered: only now does it count
+        if (seg.ver === ver) {
+          self.progress = { seg: seg, to: to };
+          if (to >= seg.abs1) { seg.sent = true; seg.pcm = null; self.progress = null; }
+        }
+        self.feed();
+      });
+    }
+    // A FLAC segment didn't make it into MSE. Try again a few times, then end the
+    // stream with an error, so the element (and whoever plays it) reports it
+    // instead of waiting for audio forever.
+    appendFailed(why) {
+      this.failures = (this.failures || 0) + 1;
+      if (this.failures < 3 && realState(this.ms) === 'open') { log('FLAC append failed (' + why + '); retrying'); this.backoff = Date.now() + 500; this.feed(); return; }
+      log('ERROR FLAC append failed (' + why + '); giving up, ending the stream with an error');
+      this.destroy();
+      try { if (realState(this.ms) === 'open') origEos.call(this.ms, 'decode'); } catch (e) {}
     }
     // While the element is starved, say once every 2 s what each side holds.
     stallReport(el, t, rb) {

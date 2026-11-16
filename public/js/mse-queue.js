@@ -171,7 +171,12 @@
     async function loadNow(i) {                              // the track we need now: a few tries
       for (var n = 0; ; n++) {
         try { return await load(i); }
-        catch (e) { if (n >= 2 || !alive()) throw e; self.emit('log', 'fetch failed (' + e.message + '), retrying'); await sleep(1000 * (n + 1)); }
+        catch (e) {
+          if (n >= 2 || !alive()) throw e;
+          self.emit('log', 'fetch failed (' + e.message + '), retrying');
+          await sleep(1000 * (n + 1));
+          if (!alive()) throw e;                              // stopped or restarted meanwhile: don't fetch for the old queue
+        }
       }
     }
     function buffered() { try { return sb.buffered; } catch (e) { return { length: 0 }; } }

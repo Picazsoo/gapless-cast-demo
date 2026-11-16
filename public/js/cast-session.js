@@ -26,7 +26,7 @@
     var pm = context.getPlayerManager(), album = null;
     var player = new QueuePlayer(el, function (type, data) { onPlayerEvent(type, data); report(type, data); });
     // mode: what is playing now; requested: picked while paused or stopped, used by the next play.
-    var kind = null, mode = 'sample-accurate', requested = null, pending = null, pendingTimer = null;
+    var kind = null, mode = 'sample-accurate', requested = null, pending = null, pendingTimer = null, startGen = 0;
     function log(m) { report('log', m); }
     function attempt(what, f) { try { f(); } catch (e) { log('skipped ' + what + ': ' + (e && e.message || e)); } }
     function abs(u) { return new URL(u, location.href).href; }
@@ -48,17 +48,18 @@
     function live() { return !!pm.getMediaInformation() && pm.getPlayerState() !== M.PlayerState.IDLE; }
 
     // ---------------------------------------------------------- loading
-    function loadStream(m, index, offset) {
+    function loadStream(m, index, offset, paused) {
       var req = new M.LoadRequestData();
       req.media = new M.MediaInformation();
       req.media.contentId = 'gapless-demo:album';
       req.media.contentType = 'audio/mp4';
-      req.customData = { gapless: { mode: m, index: index, offset: offset || 0 } };
-      req.autoplay = true;
+      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused } };
+      req.autoplay = !paused;
       return pm.load(req);
     }
     function start(m, index, offset) {
-      if (!album) return Demo.loadAlbum().then(function (a) { album = a; return start(m, index, offset); });
+      var gen = ++startGen;                       // a Stop (or a newer Play) while the album loads cancels this one
+      if (!album) return Demo.loadAlbum().then(function (a) { album = a; if (gen === startGen) return start(m, index, offset); });
       mode = m; requested = null; index = index || 0; offset = offset || 0;
       if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate')) {
         restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
@@ -92,7 +93,7 @@
       req.media.metadata = metadata(g.index);
       req.media.duration = album.tracks[g.index].duration;
       req.currentTime = 0;                        // the stream positions itself (offset is in customData)
-      req.autoplay = true;
+      req.autoplay = !g.paused;                   // a reload for a seek while paused stays paused
       return req;
     });
 
@@ -144,7 +145,7 @@
         for (var k = 0; k < r.length && !ok; k++) if (t >= r.start(k) && t <= r.end(k)) ok = true;
         if (ok) return req;
         log('seek back to ' + t.toFixed(1) + ' s: no longer buffered, reloading the track from there');
-        loadStream('stock', w.index, t);
+        loadStream('stock', w.index, t, pm.getPlayerState() === M.PlayerState.PAUSED);
         return null;
       }
       log('seek to ' + t.toFixed(1) + ' s in track ' + (w.index + 1));
@@ -214,7 +215,7 @@
       if (cmd.cmd === 'play') start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0);
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();
-      else if (cmd.cmd === 'stop') { if (kind) { stopped(); pm.stop(); } }
+      else if (cmd.cmd === 'stop') { startGen++; if (kind) { stopped(); pm.stop(); } }
       else if (cmd.cmd === 'mode') {
         var w = kind && where();
         if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) { if (cmd.mode !== mode) start(cmd.mode, w.index, w.position); }

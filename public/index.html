@@ -408,7 +408,7 @@
 
   <section id="fix">
     <h2><span class="n">04</span> The fix: swap one SourceBuffer</h2>
-    <p>The player above it stays as it is. It keeps appending Opus into what it thinks is an ordinary SourceBuffer, keeps its queue, buffering and seeking. Only the layer that hands audio to the device changes.</p>
+    <p>The player above it stays as it is. It keeps appending Opus into what it thinks is an ordinary SourceBuffer, keeps its queue and buffering, and seeks by clearing the buffer and appending again from the new point. Only the layer that hands audio to the device changes.</p>
     <div class="pipe">
       <div class="stage"><b>Music player and queue <span class="tag same">unchanged</span></b><span>appendBuffer · timestampOffset · appendWindowStart · remove · buffered</span></div>
       <div class="arrow">↓</div>
@@ -602,10 +602,12 @@
   // and act on the one selected under "Play on".
   function blank() { return { index: -1, title: '', position: 0, duration: 0, paused: false }; }
   var players = { local: blank(), cast: blank() };
+  var noSampleAccurate = { local: false, cast: false };   // that target fell back to the plain queue
   function target() { return pick('target'); }
   function render() {
     var s = players[target()];
     nowIndex = s.index; paused = s.paused;
+    if (s.fallback) { document.querySelector('input[name=mode][value="' + s.fallback + '"]').checked = true; s.fallback = null; }
     $('pause').textContent = s.paused ? 'Resume' : 'Pause';
     [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index ? 'now' : ''; });
     $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
@@ -632,7 +634,7 @@
     if (type === 'state' && data.state === 'paused') s.paused = true;
     if (type === 'state' && data.state === 'playing') s.paused = false;
     if (type === 'state' && data.state === 'stopped') players[from] = blank();
-    if (type === 'state' && data.fallback) document.querySelector('input[name=mode][value="' + data.mode + '"]').checked = true;
+    if (type === 'state' && data.fallback) { s.fallback = data.mode; noSampleAccurate[from] = true; }
     if (from === target()) render();
   }
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
@@ -684,6 +686,7 @@
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
         s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data, 'cast'); });
         s.sendMessage(NS, { cmd: 'info' }).catch(function () {});
+        noSampleAccurate.cast = false;
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         log('Cast session: ' + s.getCastDevice().friendlyName);
       }
@@ -751,9 +754,11 @@
     var model = $('rModel').value.trim();
     if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return; }
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
-    var noFlac = castDevice && castDevice.mse && castDevice.mse.flacMp4 === false;
+    var noFlac = target() === 'cast'
+      ? noSampleAccurate.cast || !!(castDevice && castDevice.mse && castDevice.mse.flacMp4 === false)
+      : noSampleAccurate.local || !SampleAccurateSB.supported();
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
-      (noFlac ? 'not available (this receiver has no FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa'));
+      (noFlac ? 'not available (no FLAC in MSE here, so that mode ran as the plain gapless queue)' : v('v_sa'));
     var receiver = castDevice
       ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
         '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nScreen: ' + castDevice.screen

@@ -157,6 +157,7 @@ node server.js          (or double-click start.bat on Windows)
 | `public/js/demo.js` | Shared glue for the page and the receiver |
 | `public/index.html` | Local player and Cast sender |
 | `public/receiver.html` | Cast receiver (CAF, custom message namespace, its own `<audio>`) |
+| `public/js/cast-session.js` | Receiver as a real Cast media session: Google Home shows the current track (title, duration, position inside it) and can pause, seek and skip, although the gapless modes play one continuous stream |
 | `public/album/` | 14 Opus/WebM tracks, `album.json`, `SOURCE.txt` |
 | `server.js` | Zero-dependency static server with byte ranges |
 

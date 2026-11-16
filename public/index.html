@@ -506,7 +506,7 @@
       <p>It runs on a 2015 Chromecast Audio, the weakest Cast device around, and keeps only about 5 seconds of decoded audio buffered ahead of the playhead.</p>
     </details>
     <details class="faq" id="faq-controls"><summary>Do seek, skip, pause and the Google Home controls still work?</summary>
-      <p>Yes. This demo seeks and switches modes mid-play, and an <a href="https://github.com/Picazsoo/chromecast-audio-gapless">earlier prototype</a> ran full Google Home controls (seek, skip, pause, adding speakers) through the same kind of pipeline.</p>
+      <p>Yes. When you cast this demo, Google Home (or any other Cast remote) shows the album as a normal media session and can pause, seek, and skip to the next or previous track. Even though the gapless modes play one continuous stream, Home shows the current track's title, its length and the position inside it, and the title changes at the exact moment the music crosses into the next track. Seeks and skips continue the same stream from the new point instead of reloading it. Tested on a Chromecast Audio and a Google TV box.</p>
     </details>
     <details class="faq" id="faq-speaker-groups"><summary>What about speaker groups, or adding a speaker while it plays?</summary>
       <p>Both tested with Chromecast Audios, and both stay gapless.</p>

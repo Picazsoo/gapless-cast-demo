@@ -35,6 +35,7 @@
   var WUP = 3, PRE = 4;             // encoder warm-up frames; decoder pre-roll packets before them
   var SNAP = 0.25 * SR;             // tracks placed this close together are joined
   var BITRATE = 192000, COMPLEXITY = 5;
+  var HOLD = 8 * SR;                // a seek this close to a track's end waits for the bridge before playing
   API.supported = function () { try { return MS.isTypeSupported(OPUS_MIME); } catch (e) { return false; } };
   API.stats = { joins: 0, ms: 0 };
   function log(m) { if (API.onLog) API.onLog(m); else console.log('[opus-bridge] ' + m); }
@@ -244,9 +245,13 @@
         this.headSent = true;
         out.push({ init: concat([h.ebml, new Uint8Array([0x18, 0x53, 0x80, 0x67, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF]), h.info, tr]) });
       }
+      var durRaw = 0;                             // Info/Duration, to know after a seek how close the end is
+      children(h.info, vint(h.info, 0, true).len + vint(h.info, vint(h.info, 0, true).len, false).len, h.info.length, function (id, p, d, s) {
+        if (id === 0x4489) { var v = new DataView(h.info.buffer, h.info.byteOffset + d, s - d); durRaw = Math.round((s - d === 8 ? v.getFloat64(0) : v.getFloat32(0)) / 1000 * SR); }
+      });
       var prev = this.cur;
       if (prev && prev.state === 'wait') { prev.state = 'pass'; }   // previous track never got its bridge: play it plain
-      this.cur = { preskip: preskip, tso: Math.round(tso * SR), raw: null, d: null, held: [], ring: [], pend: [], pad: 0, endRaw: null, state: 'new', prev: prev };
+      this.cur = { preskip: preskip, tso: Math.round(tso * SR), raw: null, d: null, held: [], ring: [], pend: [], pad: 0, endRaw: null, state: 'new', prev: prev, durRaw: durRaw };
     }
 
     // Player coordinates of raw sample r of a track (where a native SourceBuffer would play it).
@@ -282,7 +287,7 @@
         self.ranges.push([Math.max(self.ppos(t, k.raw), t.tso), self.ppos(t, k.raw + k.n)]);
         if (t.state === 'wait') { t.pend.push(k); if (t.pend.length >= KB + 2) self.bridge(o, t, out); return; }
         t.held.push(k);
-        while (t.held.length > KA) self.emit(t, t.held.shift(), out);
+        while (!t.holdAll && t.held.length > KA) self.emit(t, t.held.shift(), out);
       });
       if (pad) { t.pad = pad; t.endRaw = t.raw - pad; }
       this.mergeRanges();
@@ -297,12 +302,16 @@
       var p = t.prev;
       t.prev = null;
       if (p && p.endRaw === null && p.raw !== null) p.endRaw = p.raw;      // no end padding signalled
-      var joinable = p && p.endRaw !== null && t.raw === 0 && p.held.length === KA && p.ring.length >= KA + WUP + PRE &&
+      var joinable = p && p.endRaw !== null && t.raw === 0 && p.held.length >= KA && p.ring.length >= KA + WUP + PRE &&
         Math.abs(this.ppos(t, t.preskip) - this.ppos(p, p.endRaw)) < SNAP;
       if (joinable) { t.state = 'wait'; t.from = p; return; }
       if (p) this.flush(p, out, true);
       // Fresh start: packets play where the player put them; MSE's append window cuts the pre-skip.
       t.d = 0; t.state = 'pass'; t.fresh = true;
+      // Started (after a seek) within HOLD of the track's end: hand over nothing until the
+      // bridge into the next track is ready, so playback waits once here instead of
+      // playing on and then stopping right before the join.
+      if (t.raw > 0 && t.durRaw && t.durRaw + t.preskip - t.raw < HOLD) { t.holdAll = true; log('seek close to the end of a track: holding playback until the join is ready'); }
       out.push({ aws: Math.max(0, t.tso / SR) });
     }
     emit(t, k, out, pad) { out.push({ bytes: k.bytes, out: this.ppos(t, k.raw) + t.d, n: k.n, pad: pad || 0 }); }
@@ -317,6 +326,9 @@
       b.from = null;
       try {
         // A: decode pre-roll + warm-up + the KA held packets; keep the trimmed tail.
+        var early = a.held.splice(0, a.held.length - KA), me0 = this;     // anything held back after a seek plays now
+        early.forEach(function (k) { me0.emit(a, k, out); });
+        a.holdAll = false;
         var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = decodeAll(o, ctx.map(function (k) { return k.bytes; }));
         var aStartRaw = ctx[0].raw, heldRaw = a.held[0].raw;
         var aWarm = pa.subarray((heldRaw - WUP * 960 - aStartRaw) * 2, (heldRaw - aStartRaw) * 2);

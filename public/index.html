@@ -211,6 +211,10 @@
   .vol input { width: 120px; accent-color: var(--accent); }
   .vol button { padding: 3px 10px; font-size: 13px; }
   .vol #volPct { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .sendrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
+  .sendrow .or { color: var(--muted); font-size: 14px; }
+  .sendrow [hidden] { display: none; }
+  #rMsg { font-size: 13px; }
   .castmeta { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: flex-end; font-size: 13px; margin: 0 2px 14px; min-height: 1.4em; }
 
   /* ---------- report ---------- */
@@ -345,7 +349,8 @@
       </div>
       <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label>
-      <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><span id="rMsg" class="muted" style="font-size:13px"></span><button type="button" id="rCopy">Copy report</button><button type="button" id="rForm" hidden>Send without an account</button><button class="primary" id="rSend">Open GitHub issue</button></div>
+      <p id="rDevice" class="muted" style="font-size:13px;margin:12px 0 0">Connect with Cast first, so the receiver's details are included.</p>
+      <div class="sendrow"><button class="primary" id="rSend">Open GitHub issue</button><span class="or" id="rFormOr" hidden>or</span><button type="button" id="rForm" hidden>Send without an account</button><span class="or">or</span><button type="button" id="rCopy">Copy report</button><span id="rMsg" class="muted"></span></div>
     </details>
   </section>
 
@@ -940,7 +945,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     copyText(text, $('rMsg'));
   };
   if (FORM.url) {
-    $('rForm').hidden = false;
+    $('rForm').hidden = false; $('rFormOr').hidden = false;
     $('rForm').onclick = function () {
       var f = reportFields(3000);   // the form is opened through a URL too
       if (!f) return;

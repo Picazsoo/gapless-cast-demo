@@ -327,7 +327,7 @@
 
     <details class="card report" id="report">
       <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
-      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. This opens a pre-filled GitHub issue that you can review before posting. It includes your receiver's firmware and browser version, but never your device's name.</p>
+      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting, or copy the report as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
         <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
@@ -345,7 +345,7 @@
       </div>
       <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
       <label class="chk" style="margin-top:8px"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label>
-      <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><button class="primary" id="rSend">Open GitHub issue</button></div>
+      <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><span id="rMsg" class="muted" style="font-size:13px"></span><button type="button" id="rCopy">Copy report</button><button type="button" id="rForm" hidden>Send without an account</button><button class="primary" id="rSend">Open GitHub issue</button></div>
     </details>
   </section>
 
@@ -648,6 +648,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var album = null, el = $('audio'), nowIndex = -1;
   // Where reports go: change this if you fork the repository.
   var REPO = 'Picazsoo/gapless-cast-demo';
+  // Google Form for reports without a GitHub account. Empty url hides its button.
+  // entries: the form's entry ids (from its "Get pre-filled link") for each report field.
+  var FORM = { url: '', entries: { device: '', group: '', results: '', receiver: '', notes: '', log: '' } };
   var castDevice = null;
   function shortUa(ua) { var m = /CrKey\/[\d.]+/.exec(ua || ''), c = /Chrome\/[\d.]+/.exec(ua || ''); return [m && m[0], c && c[0]].filter(Boolean).join(', ') || (ua || '').slice(0, 80); }
   function log(m) { var l = $('log'); l.textContent += new Date().toTimeString().slice(0, 8) + '  ' + m + '\n'; l.scrollTop = l.scrollHeight; }
@@ -878,6 +881,18 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       : target() === 'cast' ? 'Cast device; its details were not available (connect with Cast first)'
       : 'Played in this browser, not on a Cast device: ' + navigator.userAgent;
   }
+  // Copies text to the clipboard and says so in msgEl. Plain http (a LAN address) has no async clipboard API.
+  function copyText(text, msgEl) {
+    function done(ok) { msgEl.textContent = ok ? 'Copied.' : 'Copy failed; please try again.'; setTimeout(function () { msgEl.textContent = ''; }, 3000); }
+    function fallback() {
+      var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      t.remove(); done(ok);
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+    else fallback();
+  }
   // Player log + everything a report would include, for pasting anywhere.
   $('copyLog').onclick = function () {
     var model = $('rModel').value.trim();
@@ -888,20 +903,13 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       'Sender: ' + navigator.userAgent + '\n' +
       '--- receiver\n' + receiverText() + '\n' +
       '--- player log\n' + logText();
-    function done(ok) { $('copyMsg').textContent = ok ? 'Copied.' : 'Copy failed; select the log and copy it by hand.'; setTimeout(function () { $('copyMsg').textContent = ''; }, 3000); }
-    function fallback() {   // plain http (a LAN address) has no async clipboard API
-      var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
-      document.body.appendChild(t); t.select();
-      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
-      t.remove(); done(ok);
-    }
-    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
-    else fallback();
+    copyText(text, $('copyMsg'));
   };
-  // "Report your result": opens a pre-filled GitHub issue (the visitor reviews it before posting).
-  $('rSend').onclick = function () {
+  // "Report your result": the same report as a GitHub issue, a Google Form or plain text. The visitor reviews it before sending.
+  // logMax: how much log fits (URL-encoded characters), or 0 to leave it out.
+  function reportFields(logMax) {
     var model = $('rModel').value.trim();
-    if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return; }
+    if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return null; }
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
     var noFlac = target() === 'cast'
       ? noSampleAccurate.cast || !!(castDevice && (castDevice.sampleAccurate === false || (castDevice.mse && castDevice.mse.flacMp4 === false)))
@@ -909,13 +917,37 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate, lossless: ' +
       (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa')) +
       '\nSample-accurate, Opus bridge (experimental): ' + v('v_ob');
-    var receiver = receiverText();
-    var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
-              device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiver, notes: $('rNotes').value.trim() };
-    if ($('rLog').checked) q.log = logText(4500);   // GitHub refuses very long new-issue URLs
-    var url = 'https://github.com/' + REPO + '/issues/new?' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
-    window.open(url, '_blank', 'noopener');
+    var f = { title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
+              device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiverText(), notes: $('rNotes').value.trim(), log: '' };
+    if ($('rLog').checked && logMax) f.log = logText(logMax);
+    return f;
+  }
+  function query(q) { return Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&'); }
+  $('rSend').onclick = function () {
+    var f = reportFields(4500);   // GitHub refuses very long new-issue URLs
+    if (!f) return;
+    var q = { template: 'device-report.yml', title: f.title, device: f.device, group: f.group, results: f.results, receiver: f.receiver, notes: f.notes };
+    if (f.log) q.log = f.log;
+    window.open('https://github.com/' + REPO + '/issues/new?' + query(q), '_blank', 'noopener');
   };
+  $('rCopy').onclick = function () {
+    var f = reportFields(6000);   // keeps it well inside a Reddit comment
+    if (!f) return;
+    var text = f.title + '\n\nSpeaker group: ' + f.group + '\n\nWhat I heard at the track changes:\n' + f.results +
+      '\n\nReceiver:\n' + f.receiver + (f.notes ? '\n\nNotes:\n' + f.notes : '') + (f.log ? '\n\nPlayer log:\n' + f.log : '') +
+      '\n\n(' + location.origin + location.pathname + ', build ' + (window.DEMO_BUILD || 'unknown') + ')';
+    copyText(text, $('rMsg'));
+  };
+  if (FORM.url) {
+    $('rForm').hidden = false;
+    $('rForm').onclick = function () {
+      var f = reportFields(3000);   // the form is opened through a URL too
+      if (!f) return;
+      var q = { usp: 'pp_url' };
+      Object.keys(FORM.entries).forEach(function (k) { if (FORM.entries[k] && f[k]) q[FORM.entries[k]] = f[k]; });
+      window.open(FORM.url + '?' + query(q), '_blank', 'noopener');
+    };
+  }
 
   // Switching mode while playing restarts the same spot in the new mode.
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {

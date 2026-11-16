@@ -403,15 +403,17 @@
         <h3><i class="dot" style="background:var(--good)"></i>Sample-accurate (this demo)</h3>
         <div class="tracks3"><span>track 1</span><span>track 2</span><span>track 3</span></div>
         <div class="down">↓ &nbsp;the same appends, unchanged</div>
-        <div class="box ok">sample-accurate SourceBuffer<small>decode · trim by sample · join exactly</small></div>
-        <div class="down">↓ &nbsp;one continuous lossless stream</div>
-        <div class="box">FLAC SourceBuffer → audio element</div>
+        <div class="box ok">sample-accurate SourceBuffer<small>trim by sample · join exactly</small></div>
+        <div class="down">↓ &nbsp;one of two ways</div>
+        <div class="split"><div class="box">Lossless<small>decode every track → FLAC</small></div><div class="box">Opus bridge<small>experimental: re&#8209;encode ~0.2 s per join → Opus</small></div></div>
+        <div class="down">↓ &nbsp;one continuous stream</div>
+        <div class="box">one SourceBuffer → audio element</div>
         <div class="down">↓</div>
         <div class="box">speaker / group</div>
-        <div class="out good">Seamless, groups stay in sync</div>
+        <div class="out good">Seamless on the devices tested so far</div>
       </div>
     </div>
-    <p class="hint">The first column reflects what we observed from YouTube Music's Cast receiver, which loads music track by track. Its player engine already has a gapless queue mode like the second column, but uses it only for Shorts.</p>
+    <p class="hint">The first column reflects what we observed from YouTube Music's Cast receiver, which loads music track by track. Its player engine already has a gapless queue mode like the second column, but uses it only for Shorts. In the third column, the lossless way is the one tested in speaker groups so far, and the Opus bridge is for devices too slow to decode everything.</p>
   </section>
 
   <section id="why">

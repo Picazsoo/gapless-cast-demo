@@ -64,17 +64,31 @@
     return lib;
   }
   // opusscript moves every int16 sample as two 16-bit cells: low byte, then high byte.
-  function decodeAll(o, pkts) {
+  // The work is done in small steps with a rest after each (API.rest x the step's own
+  // time), so a slow device's CPU is never hogged: the audio pipeline and the Cast
+  // framework keep running while a bridge is being made.
+  API.rest = 0.5;
+  var stepT = 0, busyTotal = 0;
+  function pace() {
+    var busy = Date.now() - stepT;
+    if (busy < 10) return Promise.resolve();     // fast device: keep going, a pause would cost more than the step
+    busyTotal += busy;
+    return new Promise(function (r) { setTimeout(function () { stepT = Date.now(); r(); }, Math.max(1, Math.round(busy * API.rest))); });
+  }
+  async function decodeAll(o, pkts) {
     o.h._decoder_ctl(4028, 0);                                  // OPUS_RESET_STATE
     var total = 0, parts = [];
-    pkts.forEach(function (pkt) {
+    stepT = Date.now();
+    for (var j = 0; j < pkts.length; j++) {
+      var pkt = pkts[j];
       o.m.HEAPU8.set(pkt, o.inP);
       var n = o.h._decode(o.inP, pkt.length, o.outP);
       if (n < 0) throw new Error('Opus decode error ' + n);
       var c = o.m.HEAPU16, b = o.outP >> 1, out = new Int16Array(n * 2);
       for (var i = 0; i < n * 2; i++) out[i] = c[b + 2 * i] | (c[b + 2 * i + 1] << 8);
       parts.push(out); total += n;
-    });
+      await pace();
+    }
     var pcm = new Int16Array(total * 2), q = 0;
     parts.forEach(function (x) { pcm.set(x, q); q += x.length; });
     return pcm;
@@ -134,12 +148,14 @@
       this.ops = Promise.resolve(); this.gen = 0;
       // Load libopus now and run it once on silence: on a slow device the first call
       // (while the JavaScript engine compiles it) is several times slower than later ones.
-      loadLib().then(function (o) {
-        var t0 = Date.now(), z = new Int16Array(960 * 2);
-        o.h._encoder_ctl(4010, COMPLEXITY);
-        for (var i = 0; i < 3; i++) decodeAll(o, [encodeFrame(o, z, 0, 960)]);
-        log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms)');
-      }).catch(function (e) { log('ERROR ' + e.message); });
+      this.queue(function () {
+        return loadLib().then(async function (o) {
+          var t0 = Date.now(), z = new Int16Array(960 * 2);
+          o.h._encoder_ctl(4010, COMPLEXITY);
+          for (var i = 0; i < 3; i++) { stepT = Date.now(); var f = encodeFrame(o, z, 0, 960); await pace(); await decodeAll(o, [f]); }
+          log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms, with rests)');
+        });
+      });
       log('SourceBuffer wrapped: one continuous Opus stream, re-encoded only at the joins');
     }
     get timestampOffset() { return this._tso; }
@@ -182,6 +198,7 @@
       this.queue(function () {
         return loadLib().then(function (o) {
           if (gen !== self.gen || self.dead) return;
+          self.lib = o;
           var out = self.parse(o, tso, aws);
           return self.send(out);
         });
@@ -292,7 +309,7 @@
         k.raw = t.raw; t.raw += k.n;
         t.ring.push(k); if (t.ring.length > KA + WUP + PRE) t.ring.shift();
         self.ranges.push([Math.max(self.ppos(t, k.raw), t.tso), self.ppos(t, k.raw + k.n)]);
-        if (t.state === 'wait') { t.pend.push(k); if (t.pend.length >= KB + 2) self.bridge(o, t, out); return; }
+        if (t.state === 'wait') { t.pend.push(k); if (t.pend.length >= KB + 2 && !t.queued) { t.queued = true; out.push({ job: t }); } return; }
         t.held.push(k);
         while (!t.holdAll && t.held.length > KA) self.emit(t, t.held.shift(), out);
       });
@@ -328,20 +345,21 @@
       t.held = [];
     }
 
-    bridge(o, b, out) {
+    async bridge(o, b, out) {
       var a = b.from, t0 = Date.now();
+      busyTotal = 0;
       b.from = null;
       try {
         // A: decode pre-roll + warm-up + the KA held packets; keep the trimmed tail.
         var early = a.held.splice(0, a.held.length - KA), me0 = this;     // anything held back after a seek plays now
         early.forEach(function (k) { me0.emit(a, k, out); });
         a.holdAll = false;
-        var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = decodeAll(o, ctx.map(function (k) { return k.bytes; }));
+        var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = await decodeAll(o, ctx.map(function (k) { return k.bytes; }));
         var aStartRaw = ctx[0].raw, heldRaw = a.held[0].raw;
         var aWarm = pa.subarray((heldRaw - WUP * 960 - aStartRaw) * 2, (heldRaw - aStartRaw) * 2);
         var aPart = pa.subarray((heldRaw - aStartRaw) * 2, (a.endRaw - aStartRaw) * 2);
         // B: decode from its start; drop the pre-skip.
-        var pb = decodeAll(o, b.pend.map(function (k) { return k.bytes; }));
+        var pb = await decodeAll(o, b.pend.map(function (k) { return k.bytes; }));
         var endB = KB * 960 - b.preskip;
         var bPart = pb.subarray(b.preskip * 2, (b.preskip + endB) * 2), bAfter = pb.subarray((b.preskip + endB) * 2);
         var L = aPart.length / 2 + endB, L2 = Math.max(120, Math.round(L / 120) * 120);
@@ -359,10 +377,13 @@
         var X = new Int16Array((WUP * 960 + L2 + bAfter.length / 2) * 2);
         X.set(aWarm, 0); X.set(S, WUP * 960 * 2); X.set(bAfter, (WUP * 960 + L2) * 2);
         var Y = X.subarray(la * 2), pos = 0, frames = [];
-        for (var w = 0; w < WUP; w++) { encodeFrame(o, Y, pos, 960); pos += 960; }
-        var left = L2, rem = L2 % 960;
-        [480, 240, 120].forEach(function (fs) { if (rem >= fs) { frames.push({ bytes: encodeFrame(o, Y, pos, fs), n: fs }); pos += fs; rem -= fs; left -= fs; } });
-        while (left > 0) { frames.push({ bytes: encodeFrame(o, Y, pos, 960), n: 960 }); pos += 960; left -= 960; }
+        stepT = Date.now();
+        for (var w = 0; w < WUP; w++) { encodeFrame(o, Y, pos, 960); pos += 960; await pace(); }
+        var left = L2, rem = L2 % 960, sizes = [];
+        [480, 240, 120].forEach(function (fs) { if (rem >= fs) { sizes.push(fs); rem -= fs; left -= fs; } });
+        for (; left > 0; left -= 960) sizes.push(960);
+        for (var q = 0; q < sizes.length; q++) { frames.push({ bytes: encodeFrame(o, Y, pos, sizes[q]), n: sizes[q] }); pos += sizes[q]; await pace(); }
+        if (this.dead) return;
         // Out positions: the bridge starts where A's held packets would have played.
         var at = this.ppos(a, heldRaw) + a.d;
         a.held = [];
@@ -372,9 +393,9 @@
         var rest = b.pend.slice(KB); b.pend = [];
         var self = this;
         rest.forEach(function (k) { b.held.push(k); while (b.held.length > KA) self.emit(b, b.held.shift(), out); });
-        var ms = Date.now() - t0;
+        var ms = Date.now() - t0, cpu = busyTotal + (Date.now() - stepT);
         API.stats.joins++; API.stats.ms += ms;
-        log('bridge: ' + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms');
+        log('bridge: ' + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms (' + cpu + ' ms of work, the rest pauses)');
       } catch (e) {
         log('ERROR bridge failed (' + e.message + '); joining the plain way');
         this.flush(a, out, true);
@@ -392,6 +413,11 @@
         chain = chain.then(function () { return self.realOp(function () { self.real.appendBuffer(cluster(pk)); }); });
       }
       items.forEach(function (it) {
+        if (it.job) {                             // a bridge: made in steps, then sent like the rest
+          push();
+          chain = chain.then(function () { var o2 = []; return self.bridge(self.lib, it.job, o2).then(function () { return self.send(o2); }); });
+          return;
+        }
         if (it.init) { push(); chain = chain.then(function () { return self.realOp(function () { self.real.timestampOffset = -1; self.real.appendBuffer(it.init); }); }); return; }
         if (it.aws !== undefined) { push(); chain = chain.then(function () { try { self.real.appendWindowStart = 0; self.real.appendWindowStart = it.aws; } catch (e) { log('appendWindowStart: ' + e.message); } }); return; }
         if (batch.length && (it.out - batch[0].out > SR || it.pad)) push();

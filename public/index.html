@@ -135,6 +135,8 @@
   details.faq p { margin: 0 0 12px; max-width: 70ch; }
   details.log { margin-top: 14px; font-size: 14px; }
   details.log summary { cursor: pointer; color: var(--muted); }
+  .logbar { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
+  .logbar button { font-size: 13px; padding: 4px 10px; }
   #log { font-size: 12px; line-height: 1.4; white-space: pre-wrap; max-height: 260px; overflow: auto; color: var(--muted); margin: 8px 0 0; background: var(--soft); border-radius: 9px; padding: 10px 12px; }
 
   /* ---------- explainer ---------- */
@@ -297,7 +299,7 @@
 
 
       <ol id="tracks"></ol>
-      <details class="log"><summary>Player log</summary><pre id="log"></pre></details>
+      <details class="log"><summary>Player log</summary><div class="logbar"><button type="button" id="copyLog">Copy log and device details</button><span id="copyMsg" class="muted"></span></div><pre id="log"></pre></details>
     </div>
     <p class="hint">Recording: Beethoven, Symphony No. 5, IV. Allegro, by the Skidmore College Orchestra (public domain, via Musopen). The whole movement, cut into tracks from 9 s to 3:22 long at arbitrary points mid-sound, and each one is encoded separately as Opus in WebM, just as music services stream them.</p>
 
@@ -319,6 +321,7 @@
         </table>
       </div>
       <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
+      <label class="chk" style="margin-top:8px"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label>
       <div class="row" style="margin-top:12px"><span id="rDevice" class="muted" style="font-size:13px">Connect with Cast first, so the receiver's details are included.</span><span class="spacer"></span><button class="primary" id="rSend">Open GitHub issue</button></div>
     </details>
   </section>
@@ -718,7 +721,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
         }, 15000);
         noSampleAccurate.cast = false;
         document.querySelector('input[name=target][value=cast]').checked = true; render();
-        log('Cast session: ' + s.getCastDevice().friendlyName);
+        castName = s.getCastDevice().friendlyName;
+        log('Cast session: ' + castName);
       }
     });
     castInit = appId;
@@ -780,6 +784,49 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     else if (ev.key === 'Home') { ev.preventDefault(); seekTo(0); }
     else if (ev.key === 'End') { ev.preventDefault(); seekTo(1); }
   };
+  // The same receiver details the GitHub report carries (never the device's name).
+  var castName = '';
+  // The player log without the Cast device's name; maxEncoded keeps only the latest lines that fit a URL.
+  function logText(maxEncoded) {
+    var t = $('log').textContent;
+    if (castName) t = t.split(castName).join('[device name]');
+    if (maxEncoded) {
+      var lines = t.split('\n'), out = [];
+      for (var i = lines.length - 1; i >= 0; i--) {
+        if (encodeURIComponent(lines[i] + '\n' + out.join('\n')).length > maxEncoded) { out.unshift('(earlier lines left out)'); break; }
+        out.unshift(lines[i]);
+      }
+      t = out.join('\n');
+    }
+    return t;
+  }
+  function receiverText() {
+    return target() === 'cast' && castDevice
+      ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
+        '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nWeb Audio: ' + castDevice.webAudio + ', WebAssembly: ' + castDevice.webAssembly + '\nScreen: ' + castDevice.screen
+      : target() === 'cast' ? 'Cast device; its details were not available (connect with Cast first)'
+      : 'Played in this browser, not on a Cast device: ' + navigator.userAgent;
+  }
+  // Player log + everything a report would include, for pasting anywhere.
+  $('copyLog').onclick = function () {
+    var model = $('rModel').value.trim();
+    var text = 'Gapless Cast demo, build ' + (window.DEMO_BUILD || 'unknown') + ', ' + location.origin + location.pathname + '\n' +
+      'Date: ' + new Date().toISOString() + '\n' +
+      'Target: ' + (target() === 'cast' ? 'Cast device' : 'this browser') + (model ? ', model: ' + model : '') + ($('rGroup').checked ? ' (speaker group)' : '') + '\n' +
+      'Mode selected: ' + chosen + '\n' +
+      'Sender: ' + navigator.userAgent + '\n' +
+      '--- receiver\n' + receiverText() + '\n' +
+      '--- player log\n' + logText();
+    function done(ok) { $('copyMsg').textContent = ok ? 'Copied.' : 'Copy failed; select the log and copy it by hand.'; setTimeout(function () { $('copyMsg').textContent = ''; }, 3000); }
+    function fallback() {   // plain http (a LAN address) has no async clipboard API
+      var t = document.createElement('textarea'); t.value = text; t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+      t.remove(); done(ok);
+    }
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+    else fallback();
+  };
   // "Report your result": opens a pre-filled GitHub issue (the visitor reviews it before posting).
   $('rSend').onclick = function () {
     var model = $('rModel').value.trim();
@@ -790,13 +837,10 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       : noSampleAccurate.local || !SampleAccurateSB.supported();
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
       (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa'));
-    var receiver = target() === 'cast' && castDevice
-      ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
-        '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nWeb Audio: ' + castDevice.webAudio + ', WebAssembly: ' + castDevice.webAssembly + '\nScreen: ' + castDevice.screen
-      : target() === 'cast' ? 'Cast device; its details were not available (connect with Cast before sending)'
-      : 'Played in this browser, not on a Cast device: ' + navigator.userAgent;
+    var receiver = receiverText();
     var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
               device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiver, notes: $('rNotes').value.trim() };
+    if ($('rLog').checked) q.log = logText(4500);   // GitHub refuses very long new-issue URLs
     var url = 'https://github.com/' + REPO + '/issues/new?' + Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&');
     window.open(url, '_blank', 'noopener');
   };

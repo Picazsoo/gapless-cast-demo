@@ -111,7 +111,7 @@
   ol#tracks li.now { background: var(--soft); font-weight: 600; }
   ol#tracks li .d { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
   .faq-group { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 28px 0 8px; font-weight: 600; }
-  details.faq { border-top: 1px solid var(--line); }
+  details.faq { border-top: 1px solid var(--line); scroll-margin-top: 16px; }
   details.faq:last-of-type { border-bottom: 1px solid var(--line); }
   details.faq summary { cursor: pointer; padding: 12px 28px 12px 0; font-weight: 600; list-style: none; position: relative; }
   details.faq summary::-webkit-details-marker { display: none; }
@@ -470,77 +470,77 @@
     <h2><span class="n">07</span> FAQ</h2>
 
     <h3 class="faq-group">About the idea</h3>
-    <details class="faq"><summary>Hasn't anyone done this already?</summary>
+    <details class="faq" id="faq-prior-art"><summary>Hasn't anyone done this already?</summary>
       <p>Not this way, as far as I could find. Chrome's media team published the gapless recipe for desktop browsers back in 2015 (<a href="https://web.dev/articles/mse-seamless-playback">web.dev</a>): read each file's encoder delay, then trim it with <code>appendWindow</code> and <code>timestampOffset</code>. It covers MP3 and AAC, and it is what the "Gapless queue" mode on this page does. With Opus on a Chromecast it still leaves a few milliseconds per join. Vimeo trims with MP4 edit lists (<a href="https://medium.com/vimeo-engineering-blog/a-brief-history-of-gapless-audio-and-what-you-can-do-about-it-ea9e1c343215">Vimeo engineering</a>).</p>
       <p>Cast apps that are gapless today join the tracks <em>before</em> they reach the speaker. <a href="https://deploy-preview-584--ohf-music-assistant.netlify.app/player-support/google-cast/">Music Assistant's flow mode</a> streams the whole queue from a server as one stream, which can cost metadata and device buttons. <a href="https://groups.google.com/g/hi-cast-help-forum/c/WNNeXJ0q0WM">Hi-Fi Cast</a> builds the stream on the phone, which must stay on the network. <a href="https://groups.google.com/g/bubbleupnp/c/8BDJmYyJcLg">BubbleUPnP</a> sends one URL per track and says it can't do gapless. Plex users <a href="https://forums.plex.tv/t/html5-gapless-playback-on-chromecast/344706/1">have asked for it since 2018</a>.</p>
       <p>What's new here: everything happens inside the receiver page, with the service's existing per-track files, to the sample, with no server or phone in the loop, and in speaker groups too.</p>
     </details>
-    <details class="faq"><summary>Why not just serve the album as one long file?</summary>
+    <details class="faq" id="faq-one-long-file"><summary>Why not just serve the album as one long file?</summary>
       <p>That breaks skipping, per-track metadata, play counts and caching, and it needs changes on the server side. This needs none of that: the files stay exactly as they are.</p>
     </details>
-    <details class="faq"><summary>Why not fix it in the Chromecast firmware or in Chrome?</summary>
+    <details class="faq" id="faq-firmware"><summary>Why not fix it in the Chromecast firmware or in Chrome?</summary>
       <p>Older devices like the Chromecast Audio don't get firmware updates any more. The receiver page, on the other hand, is loaded fresh every time you cast, so a fix there reaches every device at once.</p>
     </details>
-    <details class="faq"><summary>Why isn't the plain "gapless queue" good enough?</summary>
+    <details class="faq" id="faq-plain-queue"><summary>Why isn't the plain "gapless queue" good enough?</summary>
       <p>Its joins land a few milliseconds off, which you hear as a click or a tiny hole. That's probably why the obvious approach was never shipped for music. See the <a href="#numbers">measurements</a>.</p>
     </details>
 
     <h3 class="faq-group">Impact on YouTube Music</h3>
-    <details class="faq"><summary>Does this change anything for normal playback?</summary>
+    <details class="faq" id="faq-normal-playback"><summary>Does this change anything for normal playback?</summary>
       <p>No. It is switched on only for albums meant to play without a break. Everything else keeps playing track by track, exactly as today.</p>
     </details>
-    <details class="faq"><summary>Does YouTube have to change how it encodes or serves its files?</summary>
+    <details class="faq" id="faq-no-server-changes"><summary>Does YouTube have to change how it encodes or serves its files?</summary>
       <p>No. The same Opus files are used, unchanged. Only the receiver page's JavaScript changes.</p>
     </details>
-    <details class="faq"><summary>Does it lower the audio quality?</summary>
+    <details class="faq" id="faq-audio-quality"><summary>Does it lower the audio quality?</summary>
       <p>No. The Opus audio is decoded once, as it always is, and handed to the speaker losslessly as FLAC. Nothing is re-encoded.</p>
     </details>
-    <details class="faq"><summary>Isn't it too heavy for old devices?</summary>
+    <details class="faq" id="faq-old-devices"><summary>Isn't it too heavy for old devices?</summary>
       <p>It runs on a 2015 Chromecast Audio, the weakest Cast device around, and keeps only about 5 seconds of decoded audio buffered ahead of the playhead.</p>
     </details>
-    <details class="faq"><summary>Do seek, skip, pause and the Google Home controls still work?</summary>
+    <details class="faq" id="faq-controls"><summary>Do seek, skip, pause and the Google Home controls still work?</summary>
       <p>Yes. This demo seeks and switches modes mid-play, and an <a href="https://github.com/Picazsoo/chromecast-audio-gapless">earlier prototype</a> ran full Google Home controls (seek, skip, pause, adding speakers) through the same kind of pipeline.</p>
     </details>
-    <details class="faq"><summary>What about speaker groups, or adding a speaker while it plays?</summary>
+    <details class="faq" id="faq-speaker-groups"><summary>What about speaker groups, or adding a speaker while it plays?</summary>
       <p>Both tested with Chromecast Audios, and both stay gapless.</p>
     </details>
-    <details class="faq"><summary>Could it do crossfade too?</summary>
+    <details class="faq" id="faq-crossfade"><summary>Could it do crossfade too?</summary>
       <p>Probably, since the receiver has the decoded audio in hand. That's out of scope for this demo.</p>
     </details>
 
     <h3 class="faq-group">Other services</h3>
-    <details class="faq"><summary>Why can't Spotify or Apple Music do the same?</summary>
+    <details class="faq" id="faq-spotify-apple-music"><summary>Why can't Spotify or Apple Music do the same?</summary>
       <p>Their audio is protected by DRM, so their receiver pages never see the decoded sound. See <a href="#others">section 06</a>.</p>
     </details>
 
     <h3 class="faq-group">The demo itself</h3>
-    <details class="faq"><summary>Is this YouTube's code?</summary>
+    <details class="faq" id="faq-youtube-code"><summary>Is this YouTube's code?</summary>
       <p>No. It is our own code, under the MIT licence. The page only describes YouTube Music's observed behaviour, and the music is a public-domain recording.</p>
     </details>
-    <details class="faq"><summary>Why does casting need Chrome or Edge on a desktop?</summary>
+    <details class="faq" id="faq-desktop-chrome"><summary>Why does casting need Chrome or Edge on a desktop?</summary>
       <p>Google's Cast sender library for web pages only runs there. Phones can't start a cast from a web page.</p>
     </details>
-    <details class="faq"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
+    <details class="faq" id="faq-other-devices"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
       <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in should work the same way, but haven't been tested yet. Please try it and <a href="#report">report your result</a>.</p>
     </details>
-    <details class="faq"><summary>What does a device report send?</summary>
+    <details class="faq" id="faq-device-report"><summary>What does a device report send?</summary>
       <p>Only what you see before you submit it: the model you type in, your verdicts, and technical details such as the receiver's browser version and codec support. Device names like "Living room" are never read or sent.</p>
     </details>
-    <details class="faq"><summary>What is the music?</summary>
+    <details class="faq" id="faq-the-music"><summary>What is the music?</summary>
       <p>Beethoven's Symphony No. 5, movement IV, played by the Skidmore College Orchestra (public domain, via Musopen). It is cut into 14 tracks of deliberately uneven lengths, so the joins fall at awkward places.</p>
     </details>
 
     <h3 class="faq-group">About me</h3>
-    <details class="faq"><summary>Who made this? Is it affiliated with Google or YouTube?</summary>
+    <details class="faq" id="faq-who-made-this"><summary>Who made this? Is it affiliated with Google or YouTube?</summary>
       <p>I'm a mid-level Java/Kotlin backend developer with no formal IT background: I majored in plant physiology and plant molecular biology. This is an independent project, not affiliated with Google or YouTube.</p>
     </details>
-    <details class="faq"><summary>How long did this take?</summary>
+    <details class="faq" id="faq-how-long"><summary>How long did this take?</summary>
       <p>Two evenings, while juggling family life with two small kids, armed with Claude Code and Codex. That's partly the point: if one person from outside the field can get this working on a 2015 Chromecast Audio in that time, it's a small job for the team that owns the receiver.</p>
     </details>
-    <details class="faq"><summary>Why did you make this?</summary>
+    <details class="faq" id="faq-why-made"><summary>Why did you make this?</summary>
       <p>Mostly to prove a point. Gapless playback on Chromecast is often dismissed as impossible, or blamed on the hardware. A public, working example that anyone can try on their own speakers should settle that quickly.</p>
     </details>
-    <details class="faq"><summary>Why do you care so much about gapless?</summary>
+    <details class="faq" id="faq-why-care"><summary>Why do you care so much about gapless?</summary>
       <p>I'm a big fan of Gorillaz, the Beatles, the Avalanches and Daft Punk, and our home has three Chromecast Audios that are playing most of the day. Demon Days, the Abbey Road medley, Since I Left You and Homework are built to flow from one track into the next, and every gap between them breaks my heart a little bit.</p>
     </details>
   </section>
@@ -776,6 +776,26 @@
     k = (k + 1) % els.length;
     els[k].classList.add('on'); els[k].setAttribute('aria-hidden', 'false');
   }, reduce ? 6000 : 3200);
+})();
+</script>
+<script>
+// FAQ deep links: opening a question puts its #anchor in the address bar; a link with that anchor opens it.
+(function () {
+  var items = document.querySelectorAll('details.faq[id]');
+  function openFromHash() {
+    var id = decodeURIComponent(location.hash.slice(1)), d = id && document.getElementById(id);
+    if (d && d.matches('details.faq')) { d.open = true; d.scrollIntoView({ block: 'start' }); }
+  }
+  items.forEach(function (d) {
+    d.addEventListener('toggle', function () {
+      try {
+        if (d.open) history.replaceState(null, '', '#' + d.id);
+        else if (location.hash === '#' + d.id) history.replaceState(null, '', location.pathname + location.search);
+      } catch (e) {}
+    });
+  });
+  window.addEventListener('hashchange', openFromHash);
+  openFromHash();
 })();
 </script>
 </body>

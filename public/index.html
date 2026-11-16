@@ -547,6 +547,7 @@
     </details>
     <details class="faq" id="faq-speaker-groups"><summary>What about speaker groups, or adding a speaker while it plays?</summary>
       <p>Both tested with Chromecast Audios in the lossless way, and both stayed gapless. The Opus bridge option hasn't been tested in a group yet.</p>
+      <p>In a speaker group, the receiver page runs on only one device, the group leader. The leader does all the work: it fetches the tracks, trims and joins them, and plays the result through its media element. The Cast firmware then sends that audio on to the other speakers and keeps them in sync. So only one device has to do the heavy lifting, and the other speakers just play what they receive. This is also why the demo hands its audio to the speaker through a normal media element instead of Web Audio: in our tests, groups only passed on the media element's audio. Adding a speaker mid-album just adds one more listener to the leader's stream.</p>
     </details>
     <details class="faq" id="faq-crossfade"><summary>Could it do crossfade too?</summary>
       <p>Probably, since the receiver has the decoded audio in hand. That's out of scope for this demo.</p>

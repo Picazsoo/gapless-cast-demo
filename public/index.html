@@ -721,8 +721,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
         }, 15000);
         noSampleAccurate.cast = false;
         document.querySelector('input[name=target][value=cast]').checked = true; render();
-        castName = s.getCastDevice().friendlyName;
-        log('Cast session: ' + castName);
+        var nm = s.getCastDevice().friendlyName;
+        if (nm && castNames.indexOf(nm) < 0) castNames.push(nm);
+        log('Cast session: ' + nm);
       }
     });
     castInit = appId;
@@ -785,11 +786,11 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     else if (ev.key === 'End') { ev.preventDefault(); seekTo(1); }
   };
   // The same receiver details the GitHub report carries (never the device's name).
-  var castName = '';
+  var castNames = [];   // every device connected in this tab: all are left out of exported logs
   // The player log without the Cast device's name; maxEncoded keeps only the latest lines that fit a URL.
   function logText(maxEncoded) {
     var t = $('log').textContent;
-    if (castName) t = t.split(castName).join('[device name]');
+    castNames.forEach(function (nm) { t = t.split(nm).join('[device name]'); });
     if (maxEncoded) {
       var lines = t.split('\n'), out = [];
       for (var i = lines.length - 1; i >= 0; i--) {

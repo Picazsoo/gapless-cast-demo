@@ -62,8 +62,11 @@
   .sleeves figcaption { font-size: 13px; color: var(--muted); margin-top: 12px; line-height: 1.4; }
   .sleeves figcaption b { color: var(--fg); font-weight: 600; }
   @media (max-width: 760px) {
-    .hero-grid { grid-template-columns: 1fr; gap: 20px; }
-    .sleeves { display: flex; gap: 16px; align-items: center; order: 2; }
+    /* On phones the record sits between the intro and the lead paragraph. */
+    .hero-grid { display: flex; flex-direction: column; gap: 0; }
+    .hero-grid > div { display: contents; }
+    .hero-grid .lead { order: 2; }
+    .sleeves { display: flex; gap: 16px; align-items: center; order: 1; margin: 0 0 20px; }
     .sleeve-stack { width: 132px; flex: none; }
     .sleeve { padding: 11px; } .sleeve .t { font-size: 16px; } .sleeve .a { font-size: 11px; } .sleeve::after { display: none; }
     .sleeves figcaption { margin-top: 0; }

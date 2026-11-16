@@ -108,6 +108,7 @@ The details that matter in practice:
 - **`endOfStream()` is deferred** until the last decoded audio has been handed over.
 - **It stays media-element audio**, so Cast speaker groups and stream expansion work as usual. Web Audio output is not forwarded to groups.
 - **Cost:** one `decodeAudioData` per ~10 s cluster, plus copying PCM into verbatim FLAC frames, with no compression step. A 2015 Chromecast Audio keeps up comfortably.
+- **No Web Audio?** Lightweight Cast runtimes (smart speakers) have MSE but no `decodeAudioData` and no WebAssembly. There the wrapper decodes with libopus compiled to asm.js (vendored from opusscript, see `public/js/vendor/`), which runs at dozens of times real time on a desktop. The receiver logs the measured speed on the device.
 
 ### What a music receiver would change
 

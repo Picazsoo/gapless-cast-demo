@@ -39,14 +39,18 @@
   var AHEAD = 5;                        // seconds of PCM kept ahead in the real SourceBuffer
   var ID_EBML = 0x1A45DFA3;
   var Offline = global.OfflineAudioContext || global.webkitOfflineAudioContext;
+  // Without Web Audio (speaker-only Cast devices such as the Google Home Mini have
+  // neither Web Audio nor WebAssembly), Opus is decoded by libopus compiled to plain
+  // JavaScript (asm.js, from the opusscript package), loaded only when needed.
+  var here = (document.currentScript && document.currentScript.src) || location.href;
+  API.decoderUrl = new URL('vendor/opusscript_native_nasm.js', here.indexOf('/js/') >= 0 ? here : new URL('js/', location.href)).href;
   // What this device lacks for sample-accurate playback, or '' when it has everything.
-  // (Speaker-only Cast devices such as the Google Home Mini have no Web Audio, so
-  // nothing to decode Opus with in the page.)
   API.missing = function () {
-    if (!Offline) return 'Web Audio (OfflineAudioContext)';
+    if (!Offline && !API.decoderUrl) return 'Web Audio (OfflineAudioContext)';
     try { if (!MS.isTypeSupported(FLAC_MIME)) return 'FLAC in MSE'; } catch (e) { return 'FLAC in MSE'; }
     return '';
   };
+  API.decoder = function () { return Offline && !API.forceJsDecoder ? 'Web Audio' : 'libopus in JavaScript (asm.js)'; };
   API.supported = function () { return !API.missing(); };
 
   function log(m) { if (API.onLog) API.onLog(m); else console.log('[sample-accurate] ' + m); }
@@ -67,6 +71,70 @@
     return new Promise(function (resolve, reject) {
       var p = ctx().decodeAudioData(bytes.buffer, resolve, reject);
       if (p && p.then) p.then(resolve, reject);
+    });
+  }
+
+  // ---- Opus decoding without Web Audio: libopus as asm.js, one decoder reused.
+  var jsOpus = null, jsStats = { audio: 0, ms: 0, next: 10 };
+  function loadJsOpus() {
+    if (jsOpus) return jsOpus;
+    log('no Web Audio here: decoding Opus with libopus in JavaScript (asm.js)');
+    jsOpus = new Promise(function (resolve, reject) {
+      var prev = global.Module, s = document.createElement('script');
+      s.src = API.decoderUrl;
+      s.onload = function () {
+        var factory = global.Module; global.Module = prev;
+        if (typeof factory !== 'function') { reject(new Error('Opus decoder did not load')); return; }
+        Promise.resolve(factory()).then(resolve, reject);
+      };
+      s.onerror = function () { reject(new Error('could not load ' + API.decoderUrl)); };
+      document.head.appendChild(s);
+    }).then(function (m) {
+      return { m: m, h: new m.OpusScriptHandler(SR, 2, 2049), inP: m._malloc(4096), outP: m._malloc(5760 * 2 * 4) };   // opusscript writes each int16 as two 16-bit cells (low byte, high byte)
+    });
+    jsOpus.catch(function () { jsOpus = null; });
+    return jsOpus;
+  }
+  // The Opus packets of a WebM cluster, in order.
+  function packets(c) {
+    var out = [], hdr = vint(c, 0, true).len + vint(c, vint(c, 0, true).len, false).len;
+    function block(d, s) {
+      var q = d + vint(c, d, false).len;
+      if (c[q + 2] & 0x06) throw new Error('laced WebM blocks are not supported');
+      out.push(c.subarray(q + 3, s));
+    }
+    children(c, hdr, c.length, function (id, p, d, s) {
+      if (id === EB.SimpleBlock) block(d, s);
+      else if (id === EB.BlockGroup) children(c, d, s, function (id2, p2, d2, s2) { if (id2 === EB.Block) block(d2, s2); });
+    });
+    return out;
+  }
+  // Same result shape as decodeAudioData: every sample, pre-skip and padding included.
+  function decodeJs(clusters, total) {
+    return loadJsOpus().then(function (o) {
+      var t0 = Date.now(), cap = total + 2 * 5760, L = new Float32Array(cap), R = new Float32Array(cap), pos = 0;
+      o.h._decoder_ctl(4028, 0);                               // OPUS_RESET_STATE: a fresh decode for this span
+      clusters.forEach(function (c) {
+        packets(c).forEach(function (pkt) {
+          o.m.HEAPU8.set(pkt, o.inP);
+          var n = o.h._decode(o.inP, pkt.length, o.outP);
+          if (n < 0) throw new Error('Opus decode error ' + n);
+          // opusscript stores every int16 sample as two cells, low byte then high byte.
+          var h = o.m.HEAPU16, b = o.outP >> 1, k = Math.min(n, cap - pos);
+          for (var i = 0, j = b; i < k; i++, j += 4) {
+            L[pos + i] = ((h[j] | (h[j + 1] << 8)) << 16 >> 16) / 32768;
+            R[pos + i] = ((h[j + 2] | (h[j + 3] << 8)) << 16 >> 16) / 32768;
+          }
+          pos += k;
+        });
+      });
+      jsStats.ms += Date.now() - t0; jsStats.audio += pos / SR;
+      if (jsStats.audio >= jsStats.next) {
+        jsStats.next += 30;
+        log('JavaScript Opus decoder: ' + jsStats.audio.toFixed(0) + ' s of audio in ' + (jsStats.ms / 1000).toFixed(1) + ' s (' + (jsStats.audio * 1000 / Math.max(1, jsStats.ms)).toFixed(1) + 'x real time)');
+      }
+      L = L.subarray(0, pos); R = R.subarray(0, pos);
+      return { length: pos, numberOfChannels: 2, getChannelData: function (ch) { return ch ? R : L; } };
     });
   }
 
@@ -420,7 +488,9 @@
       if (seg.pre) parts.push(seg.pre.bytes);
       parts.push(seg.bytes);
       var self = this;
-      return decode(concat(parts)).then(function (ab) {
+      var p = Offline && !API.forceJsDecoder ? decode(concat(parts))
+        : decodeJs(seg.pre ? [seg.pre.bytes, seg.bytes] : [seg.bytes], (seg.pre ? seg.pre.n : 0) + seg.n);
+      return p.then(function (ab) {
         var expect = (seg.pre ? seg.pre.n : 0) + seg.n;
         if (ab.length !== expect && !self.warned) { self.warned = true; log('decoder returned ' + ab.length + ' samples, expected ' + expect + ' (aligning on the end)'); }
         var base = ab.length - seg.n - seg.raw0;            // decoded index = abs sample + base

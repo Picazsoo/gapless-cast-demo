@@ -116,7 +116,8 @@
       pendingTimer = setTimeout(function () {
         var x = pending; pending = null;
         var wasPaused = pm.getPlayerState() === M.PlayerState.PAUSED;
-        if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset, play === false); return; }
+        // (a reload keeps a paused stream paused unless the request asked to start)
+        if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset, play === undefined ? wasPaused : play === false); return; }
         showTrack(x.index);
         if (play === true && wasPaused) attempt('play', function () { pm.play(); });
         else if (play === false && !wasPaused) attempt('pause', function () { pm.pause(); });

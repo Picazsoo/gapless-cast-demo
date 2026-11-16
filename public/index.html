@@ -216,6 +216,9 @@
   .vol input { width: 120px; accent-color: var(--accent); }
   .vol button { padding: 3px 10px; font-size: 13px; }
   .vol #volPct { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .logopt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 8px; }
+  .logopt a { font-size: 14px; }
+  .reviewnote { font-size: 13px; margin: 8px 0 0; }
   .sendrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
   .sendrow .or { color: var(--muted); font-size: 14px; }
   .sendrow [hidden] { display: none; }
@@ -331,7 +334,7 @@
 
       <ol id="tracks"></ol>
       <div class="nudge" id="nudge" hidden role="status"><span><b>How did the track changes sound on your speaker?</b> A one-minute report helps show where this works, even if it didn't.</span><button type="button" class="primary" id="nudgeGo">Report your result</button><button type="button" class="x" id="nudgeX" aria-label="Hide this">×</button></div>
-      <details class="log"><summary>Player log</summary><div class="logbar"><button type="button" id="copyLog">Copy log and device details</button><span id="copyMsg" class="muted"></span></div><pre id="log"></pre></details>
+      <details class="log" id="playerLog"><summary>Player log</summary><div class="logbar"><button type="button" id="copyLog">Copy log and device details</button><span id="copyMsg" class="muted"></span></div><pre id="log"></pre></details>
     </div>
     <p class="hint">Recording: Beethoven, Symphony No. 5, IV. Allegro, by the Skidmore College Orchestra (public domain, via Musopen). The whole movement, cut into tracks from 9 s to 3:22 long at arbitrary points mid-sound, and each one is encoded separately as Opus in WebM, just as music services stream them.</p>
 
@@ -354,9 +357,10 @@
         </table>
       </div>
       <label class="notes">Notes (optional) <textarea id="rNotes" rows="2" placeholder="Anything else you noticed"></textarea></label>
-      <label class="chk" style="margin-top:8px"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label>
+      <div class="logopt"><label class="chk"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label> <a href="#playerLog" id="rSeeLog">See the log</a></div>
       <p id="rDevice" class="muted" style="font-size:13px;margin:12px 0 0">Connect with Cast first, so the receiver's details are included.</p>
       <div class="sendrow"><button class="primary" id="rSend">Open GitHub issue</button><span class="or" id="rFormOr" hidden>or</span><button type="button" id="rForm" hidden>Send without an account</button><span class="or">or</span><button type="button" id="rCopy">Copy report to share elsewhere</button><span id="rMsg" class="muted"></span></div>
+      <p class="muted reviewnote">Nothing is sent from this page. The GitHub issue and the form open pre-filled, so you can read and change everything before you submit it. Copy puts the report on your clipboard, and you see it all when you paste it.</p>
     </details>
   </section>
 
@@ -737,6 +741,11 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     setTimeout(function () { $('rModel').focus({ preventScroll: true }); }, 400);
   };
   $('nudgeX').onclick = function () { hideNudge(true); };
+  $('rSeeLog').onclick = function (e) {
+    e.preventDefault();
+    $('playerLog').open = true;
+    $('playerLog').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   $('report').addEventListener('toggle', function () { if ($('report').open) hideNudge(false); });
   [].forEach.call(document.querySelectorAll('input[name=target]'), function (r) { r.addEventListener('change', render); });
 

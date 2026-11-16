@@ -1,5 +1,7 @@
 # Gapless albums on Cast: a receiver-side demo, tested on a few devices so far
 
+**Try it: [https://picazsoo.github.io/gapless-cast-demo/](https://picazsoo.github.io/gapless-cast-demo/)** (play in the browser, or cast to your own speakers and report the result)
+
 **YouTube Music** on Cast puts a gap at every track change, even on albums made to play straight through. On the devices tested so far, **a few hundred lines of JavaScript in the receiver page** (the small web app a Chromecast loads to play an app's audio) fix that, with no new devices and no server changes. I'd like to collect results from more Cast devices to see how far that holds, so [reports](#results-on-other-cast-devices) are very welcome, including failures.
 
 This is a small demo of sample-accurate gapless playback of per-track Opus/WebM files on Google Cast devices. The decoding and joining are done entirely on the receiver, with no server-side processing. It includes a public-domain test album: one complete orchestral movement cut into 14 tracks at arbitrary points mid-sound.
@@ -37,13 +39,15 @@ On a Cast device the per-track gap is much longer, because each new media load g
 
 ### Results on other Cast devices
 
-Reports come in through the **Report your result** form on the demo page, which opens a pre-filled [device report](../../issues/new?template=device-report.yml). It includes the receiver's firmware and browser version, never the device's name.
+Reports come in through the **Report your result** form on the [demo page](https://picazsoo.github.io/gapless-cast-demo/#report), which opens a pre-filled [device report](../../issues/new?template=device-report.yml). It includes the receiver's firmware and browser version, never the device's name.
 
 | Device | Firmware / Chrome | Speaker group | Per-track (YouTube Music) | Gapless queue | Sample-accurate |
 |---|---|---|---|---|---|
 | Chromecast Audio (2015) | CrKey 1.56 / Chrome 90 | yes, 2 × Chromecast Audio | gap | click | **seamless** |
 | Google TV (onn 4K, 2023) | latest update, Nov 2026 | – (single device) | gap | glitch | **seamless** |
 | Google Home Mini (1st gen) | – | – | not tried | seamless (reported by a tester) | **too slow**: the Opus decoder runs at about 0.2× real time |
+
+The table covers the lossless way of the sample-accurate mode. The page also has an **experimental Opus bridge** option, which keeps one continuous Opus stream and decodes and re-encodes only about 0.2 s around each join, for devices too slow to decode everything. It was heard as seamless on the Chromecast Audio and the onn 4K. It is still being tested on the Home Mini and hasn't been tried in a speaker group yet.
 
 ## How it works
 
@@ -121,7 +125,7 @@ flowchart LR
     end
     subgraph next ["With this change"]
         direction TB
-        x1["queue item"] --> x2["gapless queue mode on for music<br/>one MediaSource + SourceBuffer"] --> x3["sample-accurate SourceBuffer underneath"] --> x4["seamless, incl. speaker groups"]
+        x1["queue item"] --> x2["gapless queue mode on for music<br/>one MediaSource + SourceBuffer"] --> x3["sample-accurate SourceBuffer underneath"] --> x4["seamless on the devices tested, incl. speaker groups"]
     end
     now -.-> next
 ```

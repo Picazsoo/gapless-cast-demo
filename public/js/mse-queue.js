@@ -94,10 +94,13 @@
     this.url = URL.createObjectURL(ms);
     this.onEnded = function () {
       if (ms !== self.ms) return;
-      if (perTrack && startIndex + 1 < tracks.length) {
+      if (perTrack && !self.external && startIndex + 1 < tracks.length) {
         self.emit('log', 'track ended: new MediaSource for the next track (stock behaviour)');
         self.play(tracks, startIndex + 1, 0, true);
-      } else { self.emit('ended', {}); if (!self.external) self.stop(); }
+      } else {                                // (external: whoever loaded us loads the next track)
+        self.emit('ended', { perTrack: !!perTrack, index: startIndex });
+        if (!self.external) self.stop();
+      }
     };
     ms.addEventListener('sourceopen', function () {
       if (ms !== self.ms) return;

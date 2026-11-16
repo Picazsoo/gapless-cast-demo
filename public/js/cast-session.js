@@ -20,7 +20,8 @@
   var M = cast.framework.messages, E = cast.framework.events.EventType;
   var MODES = { 'stock': 'per-track (one Cast media item and MediaSource per track)',
                 'plain': 'plain MSE gapless queue (one continuous stream)',
-                'sample-accurate': 'sample-accurate SourceBuffer (one continuous stream)' };
+                'sample-accurate': 'sample-accurate SourceBuffer (one continuous stream)',
+                'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]' };
 
   function CastSession(context, el, report) {
     var pm = context.getPlayerManager(), album = null;
@@ -61,7 +62,7 @@
       var gen = ++startGen;                       // a Stop (or a newer Play) while the album loads cancels this one
       if (!album) return Demo.loadAlbum().then(function (a) { album = a; if (gen === startGen) return start(m, index, offset); });
       mode = m; requested = null; index = index || 0; offset = offset || 0;
-      if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate')) {
+      if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (m === 'opus-bridge')) {
         restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
         return Promise.resolve();
       }
@@ -86,6 +87,7 @@
       report('state', { state: g.paused ? 'paused' : 'playing', mode: mode, fallback: mode !== g.mode });
       kind = 'stream';
       SampleAccurateSB.enabled = mode === 'sample-accurate';
+      if (global.OpusBridgeSB) OpusBridgeSB.enabled = mode === 'opus-bridge';
       player.play(album.tracks, g.index, g.offset, mode === 'stock', { external: true });
       req.media.contentUrl = player.url;          // our MediaSource: the Cast framework plays it on its media element
       req.media.contentType = 'audio/mp4';

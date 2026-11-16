@@ -21,7 +21,8 @@
   var MODES = {
     'stock': 'per-track loading (stock, one MediaSource per track)',
     'plain': 'plain MSE gapless queue (one SourceBuffer)',
-    'sample-accurate': 'sample-accurate SourceBuffer (one SourceBuffer)'
+    'sample-accurate': 'sample-accurate SourceBuffer (one SourceBuffer)',
+    'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]'
   };
   var mode = 'sample-accurate', paused = false, startGen = 0;
 
@@ -35,6 +36,7 @@
         mode = 'plain'; fellBack = true;
       }
       SampleAccurateSB.enabled = mode === 'sample-accurate';
+      if (global.OpusBridgeSB) OpusBridgeSB.enabled = mode === 'opus-bridge';
       report('log', 'mode: ' + MODES[mode] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
       paused = false;
       player.play(a.tracks, index, offset, mode === 'stock');
@@ -71,6 +73,7 @@
   }
 
   SampleAccurateSB.onLog = function (m) { report('log', '[sample-accurate] ' + m); };
+  if (global.OpusBridgeSB) OpusBridgeSB.onLog = function (m) { report('log', '[opus-bridge] ' + m); };
   global.Demo = {
     loadAlbum: loadAlbum, handle: handle, joinCommand: joinCommand,
     onReport: function (fn) { report = fn; }

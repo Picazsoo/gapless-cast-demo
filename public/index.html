@@ -279,6 +279,7 @@
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks remain.</span></label>
         <label class="mode"><input type="radio" name="mode" value="sample-accurate" checked><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Seamless.</span></label>
+        <label class="mode"><input type="radio" name="mode" value="opus-bridge"><i class="dot good"></i><b>Opus bridge (prototype)</b><span class="d">One continuous Opus stream; only ~0.2 s around each join is decoded and re-encoded. For devices too slow to decode everything.</span></label>
       </div>
 
       <div class="row controls">
@@ -584,6 +585,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
 </main>
 <script src="js/flac-mp4.js"></script>
 <script src="js/sample-accurate-sb.js"></script>
+<script src="js/opus-bridge-sb.js"></script>
 <script src="js/mse-queue.js"></script>
 <script src="js/demo.js"></script>
 <script>

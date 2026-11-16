@@ -34,11 +34,12 @@
   'use strict';
   var NS = 'urn:x-cast:dev.gapless.castdemo';
   var context = cast.framework.CastReceiverContext.getInstance();
-  var el = document.getElementById('audio'), lines = [], lastTime = 0;
+  var el = document.getElementById('audio'), lines = [], history = [], lastTime = 0;
   function $(id) { return document.getElementById(id); }
   function send(msg) { try { context.sendCustomMessage(NS, undefined, msg); } catch (e) {} }
   function log(m) {
     lines.push(m); if (lines.length > 8) lines.shift();
+    history.push(new Date().toTimeString().slice(0, 8) + '  ' + m); if (history.length > 300) history.shift();
     $('log').textContent = lines.join('\n');
     send({ type: 'log', data: m });
   }
@@ -72,7 +73,8 @@
     };
   }
   context.addCustomMessageListener(NS, function (ev) {
-    if (ev.data && ev.data.cmd === 'info') { send({ type: 'device', data: deviceInfo() }); return; }
+    // A page that connects later (e.g. to a group the session moved to) also gets this instance's log so far.
+    if (ev.data && ev.data.cmd === 'info') { send({ type: 'device', data: deviceInfo() }); send({ type: 'history', data: history.slice() }); return; }
     session.handle(ev.data);
   });
   // A real Cast media session: Google Home shows the album and can pause, seek

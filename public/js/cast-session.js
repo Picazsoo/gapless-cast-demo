@@ -75,6 +75,7 @@
         log('LOAD without demo data rejected'); return err;
       }
       clearTimeout(pendingTimer); pending = null;
+      log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
       mode = g.mode;
       report('state', { state: 'playing', mode: mode });
       kind = 'stream';
@@ -159,6 +160,7 @@
     attempt('stream transfer', function () {
       pm.setMessageInterceptor(M.MessageType.SESSION_STATE, function (ss) {
         var w = where();
+        log('SESSION_STATE requested (stream transfer / group change): ' + (w ? 'track ' + (w.index + 1) + ' at ' + w.position.toFixed(1) + ' s' : 'nothing playing'));
         if (ss && ss.loadRequestData && w && kind === 'stream') {
           ss.loadRequestData.customData = { gapless: { mode: mode, index: w.index, offset: Math.floor(w.position * 10) / 10 } };
           ss.loadRequestData.currentTime = 0;
@@ -192,6 +194,15 @@
         else { mode = cmd.mode; log('mode set to ' + MODES[mode] + ' (applies on the next play)'); }
       }
     }
+    attempt('diagnostic events', function () {
+      ['REQUEST_RESUME_SESSION', 'REQUEST_SESSION_STATE', 'REQUEST_STOP'].forEach(function (n) {
+        if (E[n]) pm.addEventListener(E[n], function () { log('Cast event ' + n); });
+      });
+      var SE = cast.framework.system && cast.framework.system.EventType;
+      if (SE) ['SENDER_CONNECTED', 'SENDER_DISCONNECTED'].forEach(function (n) {
+        if (SE[n]) context.addEventListener(SE[n], function (e) { log('Cast ' + n.toLowerCase().replace('_', ' ') + (e && e.userAgent ? ': ' + String(e.userAgent).slice(0, 40) : '')); });
+      });
+    });
     return { handle: handle, onPlayerEvent: onPlayerEvent };
   }
   global.CastSession = CastSession;

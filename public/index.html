@@ -599,6 +599,7 @@
   function onReport(type, data) {
     if (type === 'device') { castDevice = data; $('rDevice').textContent = 'Receiver details found: ' + shortUa(data.userAgent); return; }
     if (type === 'log') return log(data);
+    if (type === 'history') { if (data && data.length) { log('--- receiver log since it started:'); data.forEach(function (l) { log('  ' + l); }); log('--- (live from here)'); } return; }
     if (type === 'error') return log('ERROR ' + data);
     if (type === 'track') {
       [].forEach.call($('tracks').children, function (li, i) { li.className = i === data.index ? 'now' : ''; });

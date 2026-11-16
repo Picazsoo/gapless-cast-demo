@@ -206,6 +206,11 @@
   .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: -2px; }
   .castbtn { display: inline-flex; align-items: center; gap: 8px; background: var(--accent); color: var(--on-accent); border-color: var(--accent); font-weight: 600; padding: 8px 16px; }
   .castbtn .ci { width: 20px; height: 20px; fill: currentColor; }
+  .vol { display: inline-flex; align-items: center; gap: 8px; }
+  .vol[hidden] { display: none; }
+  .vol input { width: 120px; accent-color: var(--accent); }
+  .vol button { padding: 3px 10px; font-size: 13px; }
+  .vol #volPct { min-width: 3.2em; color: var(--muted); font-variant-numeric: tabular-nums; }
   .castmeta { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; justify-content: flex-end; font-size: 13px; margin: 0 2px 14px; min-height: 1.4em; }
 
   /* ---------- report ---------- */
@@ -288,7 +293,7 @@
         </div>
         <button id="castBtn" class="castbtn" disabled title="Choose a Cast device or speaker group"><svg class="ci" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3H3c-1.1 0-2 .9-2 2v3h2V5h18v14h-7v2h7c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM1 18v3h3c0-1.66-1.34-3-3-3zm0-4v2c2.76 0 5 2.24 5 5h2c0-3.87-3.13-7-7-7zm0-4v2c4.97 0 9 4.03 9 9h2c0-6.08-4.93-11-11-11z"/></svg><span id="castLabel">Cast</span></button>
       </div>
-      <div class="castmeta"><span id="status"></span><details class="appid"><summary>Receiver app ID</summary><input id="appId" size="10" placeholder="ABCD1234" aria-label="Receiver app ID"></details></div>
+      <div class="castmeta"><span id="status"></span><span id="volBox" class="vol" hidden><button type="button" id="mute" aria-label="Mute the Cast device">Mute</button><input type="range" id="vol" min="0" max="100" step="1" value="50" aria-label="Cast device volume"><span id="volPct">50%</span></span><details class="appid"><summary>Receiver app ID</summary><input id="appId" size="10" placeholder="ABCD1234" aria-label="Receiver app ID"></details></div>
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks might remain, depending on the device.</span></label>
@@ -760,7 +765,39 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   function showCast(s) {
     $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
     $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
+    $('volBox').hidden = !s;
+    if (s) showVolume(s);
   }
+  // Volume of the Cast device or speaker group (the receiver's own volume, as in Google Home).
+  var volDragging = false, volTimer = 0, volPending = null, volHooked = null;
+  function showVolume(s) {
+    if (volHooked !== s) {
+      volHooked = s;
+      s.addEventListener(cast.framework.SessionEventType.VOLUME_CHANGED, function () { if (session() === s) showVolume(s); });
+    }
+    var v = s.getVolume(), m = s.isMute();
+    if (v != null && !volDragging) { $('vol').value = Math.round(v * 100); }
+    $('volPct').textContent = m ? 'muted' : $('vol').value + '%';
+    $('mute').textContent = m ? 'Unmute' : 'Mute';
+  }
+  function sendVolume() {
+    volTimer = 0;
+    var s = session(); if (!s || volPending == null) return;
+    var level = volPending; volPending = null;
+    s.setVolume(level).catch(function (e) { log('volume change failed: ' + (e && e.code || e)); });
+    if (s.isMute()) s.setMute(false).catch(function () {});
+  }
+  $('vol').addEventListener('input', function () {
+    volDragging = true;
+    $('volPct').textContent = this.value + '%';
+    volPending = this.value / 100;
+    if (!volTimer) volTimer = setTimeout(sendVolume, 150);   // a drag sends a few updates, not dozens
+  });
+  $('vol').addEventListener('change', function () { volDragging = false; volPending = this.value / 100; if (!volTimer) sendVolume(); });
+  $('mute').onclick = function () {
+    var s = session(); if (!s) return;
+    s.setMute(!s.isMute()).then(function () { if (session() === s) showVolume(s); }, function (e) { log('mute failed: ' + (e && e.code || e)); });
+  };
   window.__onGCastApiAvailable = function (ok) {
     if (!ok) { $('status').textContent = 'Casting is not available in this browser. Open this page in Chrome on a computer or an Android phone, or in Edge on a computer.'; return; }
     castApi = true;

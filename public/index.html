@@ -92,6 +92,15 @@
   .mode span.d { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
   .mode:has(input:checked) { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg) inset; }
   .mode:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mode.group { cursor: default; }
+  .mode.group:has(input:focus-visible) { outline: none; }
+  .mode .sub { margin-top: 8px; display: grid; gap: 6px; }
+  .mode .sub label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; margin-left: -8px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
+  .mode .sub label:has(input:checked) { border-color: var(--line); }
+  .mode .sub label:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mode .sub input { position: static; opacity: 1; margin: 3px 0 0; flex: none; accent-color: var(--fg); }
+  .mode .sub label { font-weight: 400; }
+  .mode .sub b { font-size: 14px; font-weight: 700; }
   .dot.bad { background: var(--bad); } .dot.meh { background: var(--meh); } .dot.good { background: var(--good); }
 
   .row { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
@@ -253,7 +262,7 @@
     <h1><span class="pre">A working demo –</span> gapless YTM albums on Cast, with a change to the receiver only</h1>
     <p class="sub"><strong>YouTube Music</strong> on Cast plays albums with a gap at every track change. On the devices I could test, a few hundred lines of JavaScript in the receiver page fix that, with no new devices and no server changes. I'd like to find out how far that holds on other Cast devices.</p>
     <p class="srcrow"><a class="srcbtn" href="https://github.com/Picazsoo/gapless-cast-demo"><svg viewBox="0 0 16 16" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>Source on GitHub</span></a><span class="muted">MIT licence · our own code only · public-domain album</span></p>
-    <p class="lead">Concept albums, live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, YouTube Music puts a gap at every split. This page plays one continuous recording, cut into 14 tracks, in three ways, plus an experimental Opus bridge mode. So far the sample-accurate one has been seamless <strong>on a 2015 Chromecast Audio and on a 2023 Google TV box, in speaker groups too</strong>, but not yet on every device (see <a href="#faq-other-devices">which devices</a>). The only thing that changes is the JavaScript receiver page (the small web app the Chromecast loads), the one part YouTube Music would need to change. Nothing changes in how YouTube encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page, and a short report, good or bad, helps show where it works.</p>
+    <p class="lead">Concept albums, live albums, DJ mixes and classical movements are split into tracks that are meant to flow into each other. On Cast speakers, YouTube Music puts a gap at every split. This page plays one continuous recording, cut into 14 tracks, in three ways. So far the last one, in its lossless form, has been seamless <strong>on a 2015 Chromecast Audio and on a 2023 Google TV box, in speaker groups too</strong>, but not yet on every device (see <a href="#faq-other-devices">which devices</a>). The only thing that changes is the JavaScript receiver page (the small web app the Chromecast loads), the one part YouTube Music would need to change. Nothing changes in how YouTube encodes or serves its files, or in the phone apps and devices. You can try it on your own Cast speakers right from this page, and a short report, good or bad, helps show where it works.</p>
     </div>
     <figure class="sleeves" aria-label="Albums meant to play without a break">
       <div class="sleeve-stack" id="sleeves"></div>
@@ -280,8 +289,12 @@
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks remain.</span></label>
-        <label class="mode"><input type="radio" name="mode" value="sample-accurate" checked><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Seamless.</span></label>
-        <label class="mode"><input type="radio" name="mode" value="opus-bridge"><i class="dot good"></i><b>Opus bridge (prototype)</b><span class="d">One continuous Opus stream; only ~0.2 s around each join is decoded and re-encoded. For devices too slow to decode everything.</span></label>
+        <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it:</span>
+          <div class="sub">
+            <label><input type="radio" name="mode" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
+            <label><input type="radio" name="mode" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
+          </div>
+        </div>
       </div>
 
       <div class="row controls">
@@ -317,7 +330,8 @@
           <tbody>
             <tr><td><i class="dot bad"></i>Per-track, like YouTube Music</td><td><input type="radio" name="v_stock" value="gap" aria-label="gap"></td><td><input type="radio" name="v_stock" value="click" aria-label="click"></td><td><input type="radio" name="v_stock" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_stock" value="not tried" checked aria-label="not tried"></td></tr>
             <tr><td><i class="dot meh"></i>Gapless queue</td><td><input type="radio" name="v_plain" value="gap" aria-label="gap"></td><td><input type="radio" name="v_plain" value="click" aria-label="click"></td><td><input type="radio" name="v_plain" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_plain" value="not tried" checked aria-label="not tried"></td></tr>
-            <tr><td><i class="dot good"></i>Sample-accurate</td><td><input type="radio" name="v_sa" value="gap" aria-label="gap"></td><td><input type="radio" name="v_sa" value="click" aria-label="click"></td><td><input type="radio" name="v_sa" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_sa" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr><td><i class="dot good"></i>Sample-accurate: lossless</td><td><input type="radio" name="v_sa" value="gap" aria-label="gap"></td><td><input type="radio" name="v_sa" value="click" aria-label="click"></td><td><input type="radio" name="v_sa" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_sa" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr><td><i class="dot good"></i>Sample-accurate: Opus bridge (experimental)</td><td><input type="radio" name="v_ob" value="gap" aria-label="gap"></td><td><input type="radio" name="v_ob" value="click" aria-label="click"></td><td><input type="radio" name="v_ob" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_ob" value="not tried" checked aria-label="not tried"></td></tr>
           </tbody>
         </table>
       </div>
@@ -545,7 +559,7 @@
       <p>Google's Cast sender library for web pages only runs there. Phones can't start a cast from a web page.</p>
     </details>
     <details class="faq" id="faq-other-devices"><summary>Will it work on my Nest speaker, Google TV or TV with Chromecast built in?</summary>
-      <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in may behave the same way, but haven't been tested yet. On a first-generation Google Home Mini the sample-accurate mode can't decode fast enough, so it doesn't work there for now. The experimental Opus bridge mode is meant for devices like that and is still being tested there. Please try it and <a href="#report">report your result</a>.</p>
+      <p>Confirmed so far on a Chromecast Audio (2015) and a Google TV box (onn 4K, 2023). Nest speakers and TVs with Chromecast built in may behave the same way, but haven't been tested yet. On a first-generation Google Home Mini the sample-accurate mode can't decode fast enough, so it doesn't work there for now. Its experimental Opus bridge option is meant for devices like that and is still being tested there. Please try it and <a href="#report">report your result</a>.</p>
     </details>
     <details class="faq" id="faq-device-report"><summary>What does a device report send?</summary>
       <p>Only what you see before you submit it: the model you type in, your verdicts, and technical details such as the receiver's browser version and codec support. Device names like "Living room" are never read or sent.</p>
@@ -839,8 +853,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var noFlac = target() === 'cast'
       ? noSampleAccurate.cast || !!(castDevice && (castDevice.sampleAccurate === false || (castDevice.mse && castDevice.mse.flacMp4 === false)))
       : noSampleAccurate.local || !SampleAccurateSB.supported();
-    var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
-      (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa'));
+    var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate, lossless: ' +
+      (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa')) +
+      '\nSample-accurate, Opus bridge (experimental): ' + v('v_ob');
     var receiver = receiverText();
     var q = { template: 'device-report.yml', title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
               device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiver, notes: $('rNotes').value.trim() };

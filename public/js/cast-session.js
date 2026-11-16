@@ -61,7 +61,7 @@
       if (!album) return Demo.loadAlbum().then(function (a) { album = a; return start(m, index, offset); });
       mode = m; requested = null; index = index || 0; offset = offset || 0;
       if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate')) {
-        restartAt(index, offset, 0);              // same kind of stream: continue it in place
+        restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
         return Promise.resolve();
       }
       log('mode: ' + MODES[m] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
@@ -78,10 +78,14 @@
       clearTimeout(pendingTimer); pending = null;
       log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
       mode = g.mode;
-      report('state', { state: 'playing', mode: mode });
+      if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
+        report('error', 'sample-accurate mode needs FLAC in MSE, which this device lacks; playing the plain gapless queue instead');
+        mode = 'plain';
+      }
+      report('state', { state: 'playing', mode: mode, fallback: mode !== g.mode });
       kind = 'stream';
-      SampleAccurateSB.enabled = g.mode === 'sample-accurate';
-      player.play(album.tracks, g.index, g.offset, g.mode === 'stock', { external: true });
+      SampleAccurateSB.enabled = mode === 'sample-accurate';
+      player.play(album.tracks, g.index, g.offset, mode === 'stock', { external: true });
       req.media.contentUrl = player.url;          // our MediaSource: the Cast framework plays it on its media element
       req.media.contentType = 'audio/mp4';
       req.media.streamType = M.StreamType.BUFFERED;
@@ -95,7 +99,8 @@
     // ---------------------------------------------- seeks and skips (stream)
     // Several presses in a row (dragging the seek bar sends dozens of SEEKs,
     // or next, next, next) collapse into one restart.
-    function restartAt(index, offset, delay) {
+    // play: also resume if paused (the page's Play / Go); controller seeks keep the paused state.
+    function restartAt(index, offset, delay, play) {
       index = Math.max(0, Math.min(album.tracks.length - 1, index));
       offset = Math.max(0, Math.min(offset, album.tracks[index].duration - 1));
       pending = { index: index, offset: offset };
@@ -104,6 +109,7 @@
         var x = pending; pending = null;
         if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset); return; }
         showTrack(x.index);
+        if (play && pm.getPlayerState() === M.PlayerState.PAUSED) attempt('play', function () { pm.play(); });
       }, delay == null ? 600 : delay);
       attempt('broadcastStatus', function () { pm.broadcastStatus(true); });
     }
@@ -126,10 +132,21 @@
     }
 
     pm.setMessageInterceptor(M.MessageType.SEEK, function (req) {
-      if (kind !== 'stream' || mode === 'stock') return req;   // per-track: the item is the track, seek natively
+      if (kind !== 'stream') return req;
       var w = where(), t = req.currentTime;
       if (req.relativeTime != null) t = w.position + req.relativeTime;
       if (t == null) return req;
+      if (mode === 'stock') {
+        // Per-track: the item is the track, so seek natively, unless the target was
+        // already evicted behind the playhead (the queue only fills forwards): then
+        // reload the track from there.
+        var r = player.element().buffered, ok = !r.length || t >= r.end(r.length - 1);
+        for (var k = 0; k < r.length && !ok; k++) if (t >= r.start(k) && t <= r.end(k)) ok = true;
+        if (ok) return req;
+        log('seek back to ' + t.toFixed(1) + ' s: no longer buffered, reloading the track from there');
+        loadStream('stock', w.index, t);
+        return null;
+      }
       log('seek to ' + t.toFixed(1) + ' s in track ' + (w.index + 1));
       restartAt(w.index, t);
       return null;
@@ -154,9 +171,10 @@
     // Track changes inside the stream: tell controllers right away.
     var lastStreamIndex = -1;
     function onPlayerEvent(type, data) {
-      // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
-      if (type === 'ended' && data && data.perTrack && kind === 'stream' && mode === 'stock') {
-        if (data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0); }
+      if (type === 'ended' && data && kind === 'stream') {
+        // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
+        if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0); }
+        else { log('album finished'); stopped(); }
         return;
       }
       if (type === 'track' && kind === 'stream' && data.index !== lastStreamIndex) {

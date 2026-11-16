@@ -15,6 +15,13 @@
  *   3. the PCM goes into the player's own MediaSource as lossless FLAC in
  *      fragmented MP4, through a real 'audio/mp4; codecs="flac"' SourceBuffer.
  *
+ * Limits, as a drop-in: appendWindowStart/End are accepted but ignored (it
+ * trims by sample count instead), and a seek back into a cluster that was
+ * partly evicted is not refilled; clear the buffer with remove() and append
+ * again from there, as QueuePlayer.reset() does. SampleAccurateSB.supported()
+ * says whether it can work at all (it needs FLAC in fragmented MP4 in MSE);
+ * without it addSourceBuffer() returns a plain SourceBuffer.
+ *
  * The player, its queue and its media element are untouched; only the last
  * hop into MSE changes. buffered is reported in the player's own coordinates,
  * so its buffering logic keeps working. Needs flac-mp4.js (window.GaplessMux).
@@ -25,12 +32,13 @@
   'use strict';
   var MS = global.MediaSource;
   var G = global.GaplessMux;
-  var API = global.SampleAccurateSB = { enabled: false, onLog: null };
+  var API = global.SampleAccurateSB = { enabled: false, onLog: null, supported: function () { return false; } };
   if (!MS || !G) return;
   var SR = 48000, EB = G.EBML, FLAC_MIME = 'audio/mp4; codecs="flac"';
   var SNAP = 0.25 * SR;                 // tracks placed this close together are joined exactly
   var AHEAD = 5;                        // seconds of PCM kept ahead in the real SourceBuffer
   var ID_EBML = 0x1A45DFA3;
+  API.supported = function () { try { return MS.isTypeSupported(FLAC_MIME); } catch (e) { return false; } };
 
   function log(m) { if (API.onLog) API.onLog(m); else console.log('[sample-accurate] ' + m); }
 
@@ -137,6 +145,7 @@
       setTimeout(function () {
         if (self.dead || gen !== self.appendGen) return;   // aborted (or removed) before it ran
         self.fire(['updatestart']);
+        if (self.dead || gen !== self.appendGen) return;   // aborted from an updatestart listener
         try { self.parse(); self.updating = false; self.fire(['update', 'updateend']); }
         catch (e) { log('parse error: ' + e.message); self.acc = new Uint8Array(0); self.updating = false; self.fire(['error', 'updateend']); }
         self.feed();
@@ -183,7 +192,9 @@
           var started;
           try { started = fn(); } catch (e) { log('real SourceBuffer: ' + e.name + ' ' + e.message); resolve(e); return; }
           if (started === false || !real.updating) { resolve(); return; }
-          real.addEventListener('updateend', function () { resolve(); }, { once: true });
+          function failed() { log('ERROR the real SourceBuffer rejected a FLAC segment'); }
+          real.addEventListener('error', failed, { once: true });
+          real.addEventListener('updateend', function () { real.removeEventListener('error', failed); resolve(); }, { once: true });
         });
       });
       return this.ops;
@@ -338,7 +349,13 @@
         this.render(seg).then(function (pcm) {
           if (!self.dead && seg.ver === ver) seg.pcm = pcm;
           self.busy = false; self.feed();
-        }).catch(function (e) { log('render failed: ' + (e && e.message || e)); seg.sent = true; self.busy = false; });
+        }).catch(function (e) {
+          // Keep the timeline moving: this cluster plays as silence instead of stalling everything after it.
+          log('ERROR decoding the cluster at ' + (seg.abs0 / SR).toFixed(3) + ' s failed (' + (e && e.message || e) + '); it plays as silence');
+          if (!self.dead && seg.ver === ver) seg.pcm = { L: new Float32Array(seg.n), R: null, base: -seg.raw0 };
+          if (seg.pcm) seg.pcm.R = seg.pcm.L;
+          self.busy = false; self.feed();
+        });
         return;
       }
       var to = Math.min(seg.abs1, from + SR), bytes = this.slice(seg, from, to);

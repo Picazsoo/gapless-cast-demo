@@ -279,7 +279,7 @@
 
       <div class="nowbox">
         <div id="nowTitle" class="muted">Nothing playing</div>
-        <div class="seek"><div class="hit" id="seek" title="Click to seek within the current track"><div class="bar"><div id="progress"></div></div></div><span id="clock"></span></div>
+        <div class="seek"><div class="hit" id="seek" title="Click to seek within the current track" role="slider" tabindex="0" aria-label="Position in the current track" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0"><div class="bar"><div id="progress"></div></div></div><span id="clock"></span></div>
       </div>
 
 
@@ -596,28 +596,45 @@
   function shortUa(ua) { var m = /CrKey\/[\d.]+/.exec(ua || ''), c = /Chrome\/[\d.]+/.exec(ua || ''); return [m && m[0], c && c[0]].filter(Boolean).join(', ') || (ua || '').slice(0, 80); }
   function log(m) { var l = $('log'); l.textContent += new Date().toTimeString().slice(0, 8) + '  ' + m + '\n'; l.scrollTop = l.scrollHeight; }
 
-  function onReport(type, data) {
+  // What each player (this browser, the Cast device) is doing. The controls show
+  // and act on the one selected under "Play on".
+  function blank() { return { index: -1, title: '', position: 0, duration: 0, paused: false }; }
+  var players = { local: blank(), cast: blank() };
+  function target() { return pick('target'); }
+  function render() {
+    var s = players[target()];
+    nowIndex = s.index; paused = s.paused;
+    $('pause').textContent = s.paused ? 'Resume' : 'Pause';
+    [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index ? 'now' : ''; });
+    $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
+    $('nowTitle').className = s.index < 0 ? 'muted' : '';
+    $('progress').style.width = s.duration ? Math.min(100, 100 * s.position / s.duration) + '%' : '0';
+    $('clock').textContent = s.duration ? fmt(s.position) + ' / ' + fmt(s.duration) : '';
+    $('seek').setAttribute('aria-valuemax', Math.round(s.duration)); $('seek').setAttribute('aria-valuenow', Math.round(s.position));
+    $('seek').setAttribute('aria-valuetext', s.duration ? fmt(s.position) + ' of ' + fmt(s.duration) : 'nothing playing');
+  }
+  function onReport(type, data, from) {
+    from = from || 'local';
     if (type === 'device') { castDevice = data; $('rDevice').textContent = 'Receiver details found: ' + shortUa(data.userAgent); return; }
     if (type === 'log') return log(data);
     if (type === 'history') { if (data && data.length) { log('--- receiver log since it started:'); data.forEach(function (l) { log('  ' + l); }); log('--- (live from here)'); } return; }
     if (type === 'error') return log('ERROR ' + data);
-    if (type === 'track') {
-      [].forEach.call($('tracks').children, function (li, i) { li.className = i === data.index ? 'now' : ''; });
-      log('▶ ' + (data.index + 1) + '. ' + data.title);
-    }
-    if (type === 'track') { nowIndex = data.index; $('nowTitle').textContent = (data.index + 1) + '. ' + data.title; $('nowTitle').className = ''; }
+    var s = players[from];
+    if (type === 'track') { s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title); }
     if (type === 'time') {
-      nowIndex = data.index;
-      $('progress').style.width = Math.min(100, 100 * data.position / data.duration) + '%';
-      $('clock').textContent = fmt(data.position) + ' / ' + fmt(data.duration);
+      s.index = data.index; s.position = data.position; s.duration = data.duration;
+      if (!s.title && album) s.title = album.tracks[data.index].title;
     }
     if (type === 'ended') log('album finished');
     // Paused or resumed elsewhere (Google Home, the TV remote): keep the button in step.
-    if (type === 'state' && data.state === 'paused') { paused = true; $('pause').textContent = 'Resume'; }
-    if (type === 'state' && data.state === 'playing') resetPause();
-    if (type === 'state' && data.state === 'stopped') { $('nowTitle').textContent = 'Nothing playing'; $('nowTitle').className = 'muted'; $('progress').style.width = '0'; $('clock').textContent = ''; }
+    if (type === 'state' && data.state === 'paused') s.paused = true;
+    if (type === 'state' && data.state === 'playing') s.paused = false;
+    if (type === 'state' && data.state === 'stopped') players[from] = blank();
+    if (type === 'state' && data.fallback) document.querySelector('input[name=mode][value="' + data.mode + '"]').checked = true;
+    if (from === target()) render();
   }
-  Demo.onReport(onReport);
+  Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
+  [].forEach.call(document.querySelectorAll('input[name=target]'), function (r) { r.addEventListener('change', render); });
 
   Demo.loadAlbum().then(function (a) {
     album = a;
@@ -625,7 +642,9 @@
       var li = document.createElement('li');
       li.innerHTML = '<span></span><span class="d"></span>';
       li.children[0].textContent = t.title; li.children[1].textContent = fmt(t.duration);
+      li.tabIndex = 0; li.setAttribute('role', 'button'); li.setAttribute('aria-label', 'Play track ' + (i + 1) + ': ' + t.title);
       li.onclick = function () { send({ cmd: 'play', mode: pick('mode'), index: i, offset: 0 }); };
+      li.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); li.onclick(); } };
       $('tracks').appendChild(li);
       if (i + 1 < a.tracks.length) {
         var o = document.createElement('option'); o.value = i; o.textContent = (i + 1) + ' → ' + (i + 2); $('join').appendChild(o);
@@ -661,9 +680,9 @@
         userEnded = false;
       }
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
-        s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data); });
+        s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data, 'cast'); });
         s.sendMessage(NS, { cmd: 'info' }).catch(function () {});
-        document.querySelector('input[name=target][value=cast]').checked = true;
+        document.querySelector('input[name=target][value=cast]').checked = true; render();
         log('Cast session: ' + s.getCastDevice().friendlyName);
       }
     });
@@ -696,27 +715,43 @@
       s.sendMessage(NS, cmd).catch(function (e) { log('send failed: ' + (e && e.code || e)); });
     } else Demo.handle(cmd, el);
   }
-  function resetPause() { paused = false; $('pause').textContent = 'Pause'; }
+  function resetPause() { paused = false; players[target()].paused = false; $('pause').textContent = 'Pause'; }
   $('play').onclick = function () { resetPause(); send({ cmd: 'play', mode: pick('mode'), index: 0, offset: 0 }); };
-  $('jump').onclick = function () { resetPause(); send(Demo.joinCommand(+$('join').value, pick('mode'))); };
+  $('jump').onclick = function () {
+    var cmd = Demo.joinCommand(+$('join').value, pick('mode'));
+    if (!cmd) { log('the album is still loading'); return; }
+    resetPause(); send(cmd);
+  };
   var paused = false;
-  $('pause').onclick = function () { paused = !paused; send({ cmd: paused ? 'pause' : 'resume' }); this.textContent = paused ? 'Resume' : 'Pause'; };
+  $('pause').onclick = function () { paused = !paused; players[target()].paused = paused; send({ cmd: paused ? 'pause' : 'resume' }); this.textContent = paused ? 'Resume' : 'Pause'; };
   $('stop').onclick = function () { send({ cmd: 'stop' }); };
   // Seek within the current track: restart there in the selected mode.
-  $('seek').onclick = function (ev) {
+  function seekTo(frac) {
     if (nowIndex < 0 || !album) return;
-    var r = this.getBoundingClientRect(), frac = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    frac = Math.max(0, Math.min(1, frac));
     var t = album.tracks[nowIndex], offset = Math.min(frac * t.duration, t.duration - 0.5);
     $('progress').style.width = (100 * frac) + '%';
     resetPause();
     send({ cmd: 'play', mode: pick('mode'), index: nowIndex, offset: offset });
+  }
+  $('seek').onclick = function (ev) { var r = this.getBoundingClientRect(); seekTo((ev.clientX - r.left) / r.width); };
+  // Keyboard: arrows move 5 s, Home/End go to the start/end of the track.
+  $('seek').onkeydown = function (ev) {
+    var s = players[target()], d = s.duration;
+    if (nowIndex < 0 || !d) return;
+    var step = { ArrowRight: 5, ArrowUp: 5, ArrowLeft: -5, ArrowDown: -5 }[ev.key];
+    if (step != null) { ev.preventDefault(); seekTo((s.position + step) / d); }
+    else if (ev.key === 'Home') { ev.preventDefault(); seekTo(0); }
+    else if (ev.key === 'End') { ev.preventDefault(); seekTo(1); }
   };
   // "Report your result": opens a pre-filled GitHub issue (the visitor reviews it before posting).
   $('rSend').onclick = function () {
     var model = $('rModel').value.trim();
     if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return; }
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
-    var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' + v('v_sa');
+    var noFlac = castDevice && castDevice.mse && castDevice.mse.flacMp4 === false;
+    var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate: ' +
+      (noFlac ? 'not available (this receiver has no FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa'));
     var receiver = castDevice
       ? 'User agent: ' + castDevice.userAgent + '\nCapabilities: ' + JSON.stringify(castDevice.capabilities) +
         '\nMSE: ' + JSON.stringify(castDevice.mse) + '\nScreen: ' + castDevice.screen

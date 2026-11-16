@@ -23,15 +23,22 @@
     'plain': 'plain MSE gapless queue (one SourceBuffer)',
     'sample-accurate': 'sample-accurate SourceBuffer (one SourceBuffer)'
   };
-  var mode = 'sample-accurate', paused = false;
+  var mode = 'sample-accurate', paused = false, startGen = 0;
 
   function start(index, offset) {
+    var gen = ++startGen;                        // a Stop (or a newer Play) while the album loads cancels this one
     return loadAlbum().then(function (a) {
+      if (gen !== startGen) return;
+      var fellBack = false;
+      if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
+        report('error', 'sample-accurate mode needs FLAC in MSE, which this browser lacks; using the plain gapless queue');
+        mode = 'plain'; fellBack = true;
+      }
       SampleAccurateSB.enabled = mode === 'sample-accurate';
       report('log', 'mode: ' + MODES[mode] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
       paused = false;
       player.play(a.tracks, index, offset, mode === 'stock');
-      report('state', { state: 'playing', mode: mode });
+      report('state', { state: 'playing', mode: mode, fallback: fellBack });
     });
   }
 
@@ -41,7 +48,7 @@
     if (!player) player = new QueuePlayer(el, function (type, data) { report(type, data); });
     if (cmd.mode && !MODES[cmd.mode]) return report('error', 'unknown mode ' + cmd.mode);
     var p = Promise.resolve();
-    if (cmd.cmd === 'stop') { player.stop(); report('state', { state: 'stopped' }); }
+    if (cmd.cmd === 'stop') { startGen++; player.stop(); report('state', { state: 'stopped' }); }
     else if (cmd.cmd === 'pause') { player.pause(); paused = true; report('state', { state: 'paused' }); }
     else if (cmd.cmd === 'resume') { player.resume(); paused = false; report('state', { state: 'playing' }); }
     else if (cmd.cmd === 'play') { mode = cmd.mode || mode; p = start(cmd.index || 0, cmd.offset || 0); }
@@ -58,6 +65,7 @@
 
   // Start 4 s before the join between track i and i+1 (i counted from 0).
   function joinCommand(i, mode) {
+    if (!album) return null;                     // album not loaded yet
     var t = album.tracks[i];
     return { cmd: 'play', mode: mode, index: i, offset: Math.max(0, t.duration - 4) };
   }

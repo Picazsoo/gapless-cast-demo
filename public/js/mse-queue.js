@@ -159,11 +159,20 @@
     function alive() { return gen === self.gen && ms === self.ms; }
     function el() { return self.element(); }
     function load(i) {
-      if (!files[i]) files[i] = fetch(list[i].url).then(function (r) {
-        if (!r.ok) throw new Error(list[i].url + ': HTTP ' + r.status);
-        return r.arrayBuffer();
-      }).then(index);
+      if (!files[i]) {
+        files[i] = fetch(list[i].url).then(function (r) {
+          if (!r.ok) throw new Error(list[i].url + ': HTTP ' + r.status);
+          return r.arrayBuffer();
+        }).then(index);
+        files[i].catch(function () { files[i] = null; });  // a failed fetch is retried by the next load(i)
+      }
       return files[i];
+    }
+    async function loadNow(i) {                              // the track we need now: a few tries
+      for (var n = 0; ; n++) {
+        try { return await load(i); }
+        catch (e) { if (n >= 2 || !alive()) throw e; self.emit('log', 'fetch failed (' + e.message + '), retrying'); await sleep(1000 * (n + 1)); }
+      }
     }
     function buffered() { try { return sb.buffered; } catch (e) { return { length: 0 }; } }
     function aheadOf(t) { var r = buffered(); for (var i = 0; i < r.length; i++) if (r.end(i) > t && r.start(i) <= t + 0.5) return r.end(i) - t; return 0; }
@@ -195,8 +204,8 @@
         if (!current || next >= current.clusters.length) {               // start the next track
           if (cur + 1 >= list.length) { eos = true; ms.endOfStream(); self.emit('log', 'all tracks appended; endOfStream()'); continue; }
           cur++;
-          current = await load(cur); if (!alive()) return;
-          if (cur + 1 < list.length) load(cur + 1);                       // prefetch
+          current = await loadNow(cur); if (!alive()) return;
+          if (cur + 1 < list.length) load(cur + 1).catch(function () {});  // prefetch (retried when needed)
           sb.abort();
           sb.timestampOffset = offsets[cur];
           sb.appendWindowStart = offsets[cur];

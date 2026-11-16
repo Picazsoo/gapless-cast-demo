@@ -42,8 +42,8 @@ http.createServer((req, res) => {
     }
     headers['Content-Length'] = end - start + 1;
     res.writeHead(code, headers);
-    if (req.method === 'HEAD') return res.end();
-    fs.createReadStream(file, { start, end }).pipe(res);
+    if (req.method === 'HEAD' || st.size === 0) return res.end();
+    fs.createReadStream(file, { start, end }).on('error', () => res.destroy()).pipe(res);
   });
 }).listen(PORT, HOST, () => {
   console.log(`Gapless Cast demo on port ${PORT}`);

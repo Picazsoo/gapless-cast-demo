@@ -207,10 +207,13 @@
     }
     // An append that must get through: on a full buffer make room behind the playhead
     // and try again; anything else (or a buffer that stays full) is thrown.
-    async appendReal(bytes) {
+    // An abort() (a seek restarting the stream) ends the retries: that data is obsolete.
+    async appendReal(bytes, gen) {
+      if (gen === undefined) gen = this.gen;
       for (var n = 0; ; n++) {
+        if (this.dead || this.gen !== gen) return;
         var err = await this.realOp(function () { this.real.appendBuffer(bytes); }.bind(this));
-        if (!err || this.dead) return;
+        if (!err || this.dead || this.gen !== gen) return;
         if (err.name !== 'QuotaExceededError' || n >= 5) throw err;
         if (n === 0) log('MSE full; making room and retrying');
         var el = this.element(), rb = this.real.buffered, cut = el ? el.currentTime - 2 : 0;
@@ -246,11 +249,11 @@
           if (gen !== self.gen || self.dead) return;
           self.lib = o;
           var out = self.parse(o, tso, aws);
-          return self.send(out);
+          return self.send(out, gen);
         }).catch(function (e) { error = e; });
       }).then(function () {
+        if (gen !== self.gen || self.dead) return;                 // aborted: whatever went wrong no longer matters
         if (error) { self.updating = false; self.fire(['error', 'updateend']); self.fail(error); return; }
-        if (gen !== self.gen || self.dead) return;
         self.updating = false; self.fire(['update', 'updateend']);
       });
     }
@@ -453,20 +456,21 @@
     }
 
     // Hand parsed output to the real SourceBuffer: the init once, then clusters (~1 s each).
-    send(items) {
+    send(items, gen) {
       var self = this, chain = Promise.resolve(), batch = [];
+      if (gen === undefined) gen = this.gen;           // an abort() after this point makes the rest obsolete
       function push() {
         if (!batch.length) return;
         var pk = batch; batch = [];
-        chain = chain.then(function () { if (!self.dead) return self.appendReal(cluster(pk)); });
+        chain = chain.then(function () { if (!self.dead) return self.appendReal(cluster(pk), gen); });
       }
       items.forEach(function (it) {
         if (it.job) {                             // a bridge: made in steps, then sent like the rest
           push();
-          chain = chain.then(function () { var o2 = []; return withCodec(function () { return self.bridge(self.lib, it.job, o2); }).then(function () { if (!self.dead) return self.send(o2); }); });
+          chain = chain.then(function () { var o2 = []; return withCodec(function () { return self.bridge(self.lib, it.job, o2); }).then(function () { if (!self.dead && self.gen === gen) return self.send(o2, gen); }); });
           return;
         }
-        if (it.init) { push(); chain = chain.then(function () { if (self.dead) return; try { self.real.timestampOffset = -1; } catch (e) {} return self.appendReal(it.init); }); return; }
+        if (it.init) { push(); chain = chain.then(function () { if (self.dead) return; try { self.real.timestampOffset = -1; } catch (e) {} return self.appendReal(it.init, gen); }); return; }
         if (it.aws !== undefined) { push(); chain = chain.then(function () { try { self.real.appendWindowStart = 0; self.real.appendWindowStart = it.aws; } catch (e) { log('appendWindowStart: ' + e.message); } }); return; }
         if (batch.length && (it.out - batch[0].out > SR || it.pad)) push();
         batch.push(it);
@@ -489,6 +493,8 @@
 
   var urlToMs = new Map(), origCreate = URL.createObjectURL;
   URL.createObjectURL = function (o) { var u = origCreate.apply(this, arguments); if (o instanceof MS) urlToMs.set(u, o); return u; };
+  var origRevoke = URL.revokeObjectURL;
+  URL.revokeObjectURL = function (u) { urlToMs.delete(u); return origRevoke.apply(this, arguments); };
   var origAdd = MS.prototype.addSourceBuffer, origRemove = MS.prototype.removeSourceBuffer, origEos = MS.prototype.endOfStream;
   var proxies = new WeakMap();
   MS.prototype.addSourceBuffer = function (type) {

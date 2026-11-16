@@ -41,6 +41,8 @@
     if (o instanceof MS) urlToMs.set(u, o);
     return u;
   };
+  var origRevoke = URL.revokeObjectURL;
+  URL.revokeObjectURL = function (u) { urlToMs.delete(u); return origRevoke.apply(this, arguments); };
 
   var decodeCtx = null;
   function ctx() { return decodeCtx || (decodeCtx = new OfflineAudioContext(2, 1, SR)); }
@@ -95,6 +97,7 @@
       this.segs = [];            // {abs0, abs1, raw0, n, bytes, pre, head, sent, ver}
       this.ops = Promise.resolve();
       this.busy = false; this.seq = 1; this.frameNo = 0; this.ahead = AHEAD;
+      this.appendGen = 0;        // bumped by abort(): a scheduled append that was aborted must not complete
       this.stats = { tracks: 0, joins: [] };
       var self = this;
       this.queueReal(function () { real.appendBuffer(G.flacInit(SR)); });
@@ -129,9 +132,10 @@
       var bytes = data instanceof ArrayBuffer ? new Uint8Array(data) : new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
       this.acc = concat([this.acc, bytes]);          // copies: the player may reuse its buffer
       this.updating = true;
-      var self = this;
+      var self = this, gen = ++this.appendGen;
       if (this.ms.__eosPending) this.ms.__eosPending = false;
       setTimeout(function () {
+        if (self.dead || gen !== self.appendGen) return;   // aborted (or removed) before it ran
         self.fire(['updatestart']);
         try { self.parse(); self.updating = false; self.fire(['update', 'updateend']); }
         catch (e) { log('parse error: ' + e.message); self.acc = new Uint8Array(0); self.updating = false; self.fire(['error', 'updateend']); }
@@ -141,7 +145,7 @@
 
     abort() {
       log('player abort()');
-      this.acc = new Uint8Array(0); this.prev = null;
+      this.acc = new Uint8Array(0); this.prev = null; this.appendGen++;
       if (this.updating) { this.updating = false; this.fire(['abort', 'updateend']); }
     }
 
@@ -320,7 +324,7 @@
         if (!g.sent && g.abs1 > g.abs0 && g.abs1 > t * SR - SR * 0.05) { seg = g; break; }
       }
       if (!seg) {
-        if (this.ms.__eosPending && realState(this.ms) === 'open' && !this.segs.some(function (g) { return !g.sent && g.abs1 > g.abs0; })) {
+        if (this.ms.__eosPending && realState(this.ms) === 'open' && !this.owed()) {
           this.ms.__eosPending = false; log('all audio handed to MSE; endOfStream()');
           try { origEos.call(this.ms); } catch (e) { log('endOfStream: ' + e.message); }
         }
@@ -387,7 +391,14 @@
       }
       return G.flacSegment(this.seq++, from, frames, sizes, durs);
     }
-    destroy() { this.dead = true; clearInterval(this.timer); }
+    // Audio still to hand to MSE before the stream can end. Clusters already
+    // played and evicted from the real buffer don't count (they come back only
+    // after a seek backwards, which reopens the stream anyway).
+    owed() {
+      var el = this.element(), lim = ((el ? el.currentTime : 0) - 0.05) * SR;
+      return this.segs.some(function (g) { return !g.sent && g.abs1 > g.abs0 && g.abs1 > lim; });
+    }
+    destroy() { this.dead = true; this.appendGen++; clearInterval(this.timer); this.segs = []; this.prev = null; this.acc = new Uint8Array(0); }
   }
 
   // ------------------------------------------------------- MediaSource hooks
@@ -398,6 +409,7 @@
     var real = origAdd.call(this, FLAC_MIME), p = new WrappedSourceBuffer(this, real);
     proxyOf.set(real, p);
     (proxiesOf.get(this) || proxiesOf.set(this, []).get(this)).push(p);
+    this.addEventListener('sourceclose', function () { p.destroy(); }, { once: true });
     return p;
   };
   MS.prototype.removeSourceBuffer = function (sb) {
@@ -406,7 +418,7 @@
   };
   MS.prototype.endOfStream = function (err) {
     var list = proxiesOf.get(this);
-    if (!err && list && list.some(function (p) { return !p.dead && p.segs.some(function (g) { return !g.sent && g.abs1 > g.abs0; }); })) {
+    if (!err && list && list.some(function (p) { return !p.dead && p.owed(); })) {
       this.__eosPending = true; log('endOfStream() deferred until the wrapped buffer has handed over all audio');
       return;
     }

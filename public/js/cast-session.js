@@ -25,7 +25,8 @@
   function CastSession(context, el, report) {
     var pm = context.getPlayerManager(), album = null;
     var player = new QueuePlayer(el, function (type, data) { onPlayerEvent(type, data); report(type, data); });
-    var kind = null, mode = 'sample-accurate', pending = null, pendingTimer = null;
+    // mode: what is playing now; requested: picked while paused or stopped, used by the next play.
+    var kind = null, mode = 'sample-accurate', requested = null, pending = null, pendingTimer = null;
     function log(m) { report('log', m); }
     function attempt(what, f) { try { f(); } catch (e) { log('skipped ' + what + ': ' + (e && e.message || e)); } }
     function abs(u) { return new URL(u, location.href).href; }
@@ -58,7 +59,7 @@
     }
     function start(m, index, offset) {
       if (!album) return Demo.loadAlbum().then(function (a) { album = a; return start(m, index, offset); });
-      mode = m; index = index || 0; offset = offset || 0;
+      mode = m; requested = null; index = index || 0; offset = offset || 0;
       if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate')) {
         restartAt(index, offset, 0);              // same kind of stream: continue it in place
         return Promise.resolve();
@@ -192,15 +193,14 @@
     // Commands from the demo page (same shape as Demo.handle).
     function handle(cmd) {
       if (cmd.mode && !MODES[cmd.mode]) return report('error', 'unknown mode ' + cmd.mode);
-      if (cmd.cmd === 'play') start(cmd.mode || mode, cmd.index || 0, cmd.offset || 0);
+      if (cmd.cmd === 'play') start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0);
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();
       else if (cmd.cmd === 'stop') { if (kind) { stopped(); pm.stop(); } }
       else if (cmd.cmd === 'mode') {
-        if (cmd.mode === mode) return;
         var w = kind && where();
-        if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) start(cmd.mode, w.index, w.position);
-        else { mode = cmd.mode; log('mode set to ' + MODES[mode] + ' (applies on the next play)'); }
+        if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) { if (cmd.mode !== mode) start(cmd.mode, w.index, w.position); }
+        else { requested = cmd.mode === mode ? null : cmd.mode; log('mode set to ' + MODES[cmd.mode] + ' (applies on the next play)'); }
       }
     }
     attempt('diagnostic events', function () {

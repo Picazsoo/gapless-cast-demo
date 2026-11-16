@@ -234,9 +234,14 @@
     clearInterval(this.timer);
     if (this.onEnded && this.endedEl) this.endedEl.removeEventListener('ended', this.onEnded);
     this.onEnded = null; this.endedEl = null; this.offsets = null;
-    var wasExternal = this.external;
-    this.ms = null; this.sb = null;
+    var wasExternal = this.external, sb = this.sb, url = this.url;
+    this.ms = null; this.sb = null; this.url = null;
     if (!keepElement && !wasExternal && this.el.src) { this.el.pause(); this.el.removeAttribute('src'); this.el.load(); }
+    // Let the old stream go: a sample-accurate buffer stops its timer and drops
+    // its audio; the blob URL is no longer needed (an attached MediaSource keeps
+    // playing without it, and whoever loads the next source gets a new one).
+    if (sb && sb.destroy) sb.destroy();
+    if (url) URL.revokeObjectURL(url);
   };
   QueuePlayer.prototype.pause = function () { this.element().pause(); };
   QueuePlayer.prototype.resume = function () { this.element().play(); };

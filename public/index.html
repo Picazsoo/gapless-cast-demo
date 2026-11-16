@@ -722,9 +722,10 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var ctx = cast.framework.CastContext.getInstance();
     ctx.setOptions({ receiverApplicationId: appId, autoJoinPolicy: chrome.cast.AutoJoinPolicy.ORIGIN_SCOPED });
     ctx.addEventListener(cast.framework.CastContextEventType.SESSION_STATE_CHANGED, function (ev) {
-      var s = session();
-      $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
-      $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
+      // While a session is ending (and during SESSION_ENDED itself) getCurrentSession() can still return it.
+      var ending = ev.sessionState === 'SESSION_ENDING' || ev.sessionState === 'SESSION_ENDED' || ev.sessionState === 'SESSION_START_FAILED';
+      var s = ending ? null : session();
+      showCast(s);
       if (ev.sessionState === 'SESSION_ENDED') {
         castDevice = null; $('rDevice').textContent = 'Connect with Cast first, so the receiver\'s details are included.';
         if (!userEnded) log('Cast session ended. If speakers were added to it, it now runs on a group named like "<speaker> + 1": press Cast and pick that to control it again.');
@@ -745,8 +746,16 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
         log('Cast session: ' + nm);
       }
     });
+    // Backup: the button follows the framework's own connection state too.
+    ctx.addEventListener(cast.framework.CastContextEventType.CAST_STATE_CHANGED, function (ev) {
+      if (ev.castState !== cast.framework.CastState.CONNECTED) showCast(null);
+    });
     castInit = appId;
     return true;
+  }
+  function showCast(s) {
+    $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
+    $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
   }
   window.__onGCastApiAvailable = function (ok) {
     if (!ok) { $('status').textContent = 'Casting is not available in this browser. Open this page in Chrome or Edge on a desktop computer.'; return; }
@@ -762,7 +771,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (!initCast()) { log('the Cast API has not loaded yet; is this page open via http://localhost?'); return; }
     var ctx = cast.framework.CastContext.getInstance();
     // Disconnect stops the music on the speaker and closes the receiver, like Chrome's own "Stop casting".
-    if (session()) { userEnded = true; ctx.endCurrentSession(true); log('disconnected; playback stopped'); return; }
+    if (session()) { userEnded = true; ctx.endCurrentSession(true); showCast(null); log('disconnected; playback stopped'); return; }
     log('starting a Cast session with receiver app ' + appId + '…');
     ctx.requestSession().catch(function (e) { log(e === 'cancel' ? 'Cast device picker closed' : 'Cast session failed: ' + e); });
   };

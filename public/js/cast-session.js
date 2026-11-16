@@ -102,10 +102,18 @@
       pendingTimer = setTimeout(function () {
         var x = pending; pending = null;
         if (!live() || !player.reset(album.tracks, x.index, x.offset)) { loadStream(mode, x.index, x.offset); return; }
-        var info = pm.getMediaInformation();
-        if (info) { info.metadata = metadata(x.index); info.duration = album.tracks[x.index].duration; attempt('setMediaInformation', function () { pm.setMediaInformation(info, true); }); }
+        showTrack(x.index);
       }, delay == null ? 600 : delay);
       attempt('broadcastStatus', function () { pm.broadcastStatus(true); });
+    }
+    // Make the current track the media item controllers display. Setting the media
+    // information (not just answering status requests) is what makes phone
+    // notifications and other remotes refresh their title and progress bar.
+    function showTrack(i) {
+      var info = pm.getMediaInformation();
+      if (!info || !album) return;
+      info.metadata = metadata(i); info.duration = album.tracks[i].duration;
+      attempt('setMediaInformation', function () { pm.setMediaInformation(info, true); });
     }
     function skip(dir) {
       var w = where(), i = w.index;
@@ -152,6 +160,7 @@
       }
       if (type === 'track' && kind === 'stream' && data.index !== lastStreamIndex) {
         lastStreamIndex = data.index;
+        if (!pending) showTrack(data.index);
         attempt('broadcastStatus', function () { pm.broadcastStatus(true); });
       }
     }

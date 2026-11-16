@@ -198,7 +198,10 @@
     function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
     async function pump() {
       // the whole queue, so a start offset is seekable (grows on every in-place restart)
-      if (!(ms.duration >= t0)) ms.duration = t0;
+      // (a wrapped SourceBuffer's real buffer may still be busy, and then MSE refuses a new duration: wait)
+      for (var tries = 0; !(ms.duration >= t0) && alive(); tries++) {
+        try { ms.duration = t0; } catch (e) { if (e.name !== 'InvalidStateError' || tries >= 50) throw e; await sleep(100); }
+      }
       while (alive()) {
         var e = el();
         if (seekTo && e.readyState >= 1) { e.currentTime = seekTo; seekTo = 0; }

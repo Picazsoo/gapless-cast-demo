@@ -45,6 +45,19 @@
     $('log').textContent = lines.join('\n');
     send({ type: 'log', data: m });
   }
+  // Audible trouble, from the media element itself: when it runs dry and how long until it plays again.
+  // (Capture on document: media events don't bubble. The Cast framework plays on an element of this page.)
+  var dryAt = 0, started = false;   // the very first wait (before anything played) is just the start
+  document.addEventListener('waiting', function (e) {
+    if (started && !e.target.paused && !dryAt) { dryAt = Date.now(); log('audio ran dry at ' + e.target.currentTime.toFixed(2) + ' s'); }
+  }, true);
+  document.addEventListener('playing', function (e) {
+    started = true;
+    if (dryAt) { log('audio playing again at ' + e.target.currentTime.toFixed(2) + ' s after ' + (Date.now() - dryAt) + ' ms'); dryAt = 0; }
+  }, true);
+  // A main thread that was blocked shows up as a late timer.
+  var tick = Date.now();
+  setInterval(function () { var late = Date.now() - tick - 500; tick = Date.now(); if (late > 300) log('main thread was blocked for ~' + late + ' ms'); }, 500);
   function onReport(type, data) {
     if (type === 'log') return log(data);
     if (type === 'error') { log('ERROR ' + data); send({ type: 'error', data: data }); return; }

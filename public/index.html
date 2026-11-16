@@ -145,6 +145,11 @@
   details.faq[open] summary::after { content: "\2212"; }
   details.faq summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   details.faq p { margin: 0 0 12px; max-width: 70ch; }
+  .nudge { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 14px; padding: 12px 14px; border: 1px solid var(--accent); border-radius: 12px; font-size: 14px; }
+  .nudge[hidden] { display: none; }
+  .nudge > span { flex: 1 1 260px; }
+  .nudge .x { border: 0; background: none; font-size: 20px; line-height: 1; padding: 2px 6px; color: var(--muted); }
+  .verdicts tr.heard td:first-child::after { content: "you played this"; margin-left: 8px; font-size: 12px; color: var(--accent); }
   details.log { margin-top: 14px; font-size: 14px; }
   details.log summary { cursor: pointer; color: var(--muted); }
   .logbar { display: flex; gap: 10px; align-items: center; margin-top: 8px; }
@@ -325,6 +330,7 @@
 
 
       <ol id="tracks"></ol>
+      <div class="nudge" id="nudge" hidden role="status"><span><b>How did the track changes sound on your speaker?</b> A one-minute report helps show where this works, even if it didn't.</span><button type="button" class="primary" id="nudgeGo">Report your result</button><button type="button" class="x" id="nudgeX" aria-label="Hide this">×</button></div>
       <details class="log"><summary>Player log</summary><div class="logbar"><button type="button" id="copyLog">Copy log and device details</button><span id="copyMsg" class="muted"></span></div><pre id="log"></pre></details>
     </div>
     <p class="hint">Recording: Beethoven, Symphony No. 5, IV. Allegro, by the Skidmore College Orchestra (public domain, via Musopen). The whole movement, cut into tracks from 9 s to 3:22 long at arbitrary points mid-sound, and each one is encoded separately as Opus in WebM, just as music services stream them.</p>
@@ -340,10 +346,10 @@
         <table class="verdicts">
           <thead><tr><th>What you heard at the track changes</th><th>Gap</th><th>Click</th><th>Seamless</th><th>Not tried</th></tr></thead>
           <tbody>
-            <tr><td><i class="dot bad"></i>Per-track, like YouTube Music</td><td><input type="radio" name="v_stock" value="gap" aria-label="gap"></td><td><input type="radio" name="v_stock" value="click" aria-label="click"></td><td><input type="radio" name="v_stock" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_stock" value="not tried" checked aria-label="not tried"></td></tr>
-            <tr><td><i class="dot meh"></i>Gapless queue</td><td><input type="radio" name="v_plain" value="gap" aria-label="gap"></td><td><input type="radio" name="v_plain" value="click" aria-label="click"></td><td><input type="radio" name="v_plain" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_plain" value="not tried" checked aria-label="not tried"></td></tr>
-            <tr><td><i class="dot good"></i>Sample-accurate: lossless</td><td><input type="radio" name="v_sa" value="gap" aria-label="gap"></td><td><input type="radio" name="v_sa" value="click" aria-label="click"></td><td><input type="radio" name="v_sa" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_sa" value="not tried" checked aria-label="not tried"></td></tr>
-            <tr><td><i class="dot good"></i>Sample-accurate: Opus bridge (experimental)</td><td><input type="radio" name="v_ob" value="gap" aria-label="gap"></td><td><input type="radio" name="v_ob" value="click" aria-label="click"></td><td><input type="radio" name="v_ob" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_ob" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr data-mode="stock"><td><i class="dot bad"></i>Per-track, like YouTube Music</td><td><input type="radio" name="v_stock" value="gap" aria-label="gap"></td><td><input type="radio" name="v_stock" value="click" aria-label="click"></td><td><input type="radio" name="v_stock" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_stock" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr data-mode="plain"><td><i class="dot meh"></i>Gapless queue</td><td><input type="radio" name="v_plain" value="gap" aria-label="gap"></td><td><input type="radio" name="v_plain" value="click" aria-label="click"></td><td><input type="radio" name="v_plain" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_plain" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr data-mode="sample-accurate"><td><i class="dot good"></i>Sample-accurate: lossless</td><td><input type="radio" name="v_sa" value="gap" aria-label="gap"></td><td><input type="radio" name="v_sa" value="click" aria-label="click"></td><td><input type="radio" name="v_sa" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_sa" value="not tried" checked aria-label="not tried"></td></tr>
+            <tr data-mode="opus-bridge"><td><i class="dot good"></i>Sample-accurate: Opus bridge (experimental)</td><td><input type="radio" name="v_ob" value="gap" aria-label="gap"></td><td><input type="radio" name="v_ob" value="click" aria-label="click"></td><td><input type="radio" name="v_ob" value="seamless" aria-label="seamless"></td><td><input type="radio" name="v_ob" value="not tried" checked aria-label="not tried"></td></tr>
           </tbody>
         </table>
       </div>
@@ -688,7 +694,10 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (type === 'history') { if (data && data.length) { log('--- receiver log since it started:'); data.forEach(function (l) { log('  ' + l); }); log('--- (live from here)'); } return; }
     if (type === 'error') return log('ERROR ' + data);
     var s = players[from];
-    if (type === 'track') { s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title); }
+    if (type === 'track') {
+      if (from === 'cast' && s.index >= 0 && data.index !== s.index && !s.paused) heardJoin();
+      s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
+    }
     if (type === 'time') {
       s.index = data.index; s.position = data.position; s.duration = data.duration;
       if (!s.title && album) s.title = album.tracks[data.index].title;
@@ -702,6 +711,33 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (from === target()) render();
   }
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
+
+  // A gentle nudge towards the report once someone has heard track changes on a Cast device.
+  var heardModes = {}, nudgeOff = false;
+  try { nudgeOff = localStorage.getItem('castDemoNudge') === 'off'; } catch (e) {}
+  function heardJoin() {
+    var m = noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen;
+    heardModes[m] = (heardModes[m] || 0) + 1;
+    markHeard();
+    if (!nudgeOff && !$('report').open) $('nudge').hidden = false;
+  }
+  function markHeard() {
+    [].forEach.call(document.querySelectorAll('.verdicts tr[data-mode]'), function (tr) {
+      tr.classList.toggle('heard', !!heardModes[tr.getAttribute('data-mode')]);
+    });
+  }
+  function hideNudge(forGood) {
+    $('nudge').hidden = true;
+    if (forGood) { nudgeOff = true; try { localStorage.setItem('castDemoNudge', 'off'); } catch (e) {} }
+  }
+  $('nudgeGo').onclick = function () {
+    hideNudge(false);
+    $('report').open = true;
+    $('report').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(function () { $('rModel').focus({ preventScroll: true }); }, 400);
+  };
+  $('nudgeX').onclick = function () { hideNudge(true); };
+  $('report').addEventListener('toggle', function () { if ($('report').open) hideNudge(false); });
   [].forEach.call(document.querySelectorAll('input[name=target]'), function (r) { r.addEventListener('change', render); });
 
   Demo.loadAlbum().then(function (a) {
@@ -931,14 +967,14 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   function query(q) { return Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&'); }
   $('rSend').onclick = function () {
     var f = reportFields(4500);   // GitHub refuses very long new-issue URLs
-    if (!f) return;
+    if (!f) return; hideNudge(true);
     var q = { template: 'device-report.yml', title: f.title, device: f.device, group: f.group, results: f.results, receiver: f.receiver, notes: f.notes };
     if (f.log) q.log = f.log;
     window.open('https://github.com/' + REPO + '/issues/new?' + query(q), '_blank', 'noopener');
   };
   $('rCopy').onclick = function () {
     var f = reportFields(6000);   // keeps it well inside a Reddit comment
-    if (!f) return;
+    if (!f) return; hideNudge(true);
     var text = f.title + '\n\nSpeaker group: ' + f.group + '\n\nWhat I heard at the track changes:\n' + f.results +
       '\n\nReceiver:\n' + f.receiver + (f.notes ? '\n\nNotes:\n' + f.notes : '') + (f.log ? '\n\nPlayer log:\n' + f.log : '') +
       '\n\n(' + location.origin + location.pathname + ', build ' + (window.DEMO_BUILD || 'unknown') + ')';
@@ -948,7 +984,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     $('rForm').hidden = false; $('rFormOr').hidden = false;
     $('rForm').onclick = function () {
       var f = reportFields(3000);   // the form is opened through a URL too
-      if (!f) return;
+      if (!f) return; hideNudge(true);
       var q = { usp: 'pp_url' };
       Object.keys(FORM.entries).forEach(function (k) { if (FORM.entries[k] && f[k]) q[FORM.entries[k]] = f[k]; });
       window.open(FORM.url + '?' + query(q), '_blank', 'noopener');

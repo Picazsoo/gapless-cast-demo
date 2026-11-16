@@ -28,8 +28,10 @@ jobs:
           printf "window.CAST_DEMO_CONFIG = { appId: '%s' };\n" "$CAST_APP_ID" > public/config.js
       # GitHub Pages lets browsers (and Cast devices) cache files for 10 minutes. Stamp
       # each script URL with the commit, so a new deploy loads new code right away.
-      - name: Cache-bust scripts
-        run: sed -i -E "s#(src=\"js/[a-z0-9-]+\.js|src=\"config\.js)\"#\1?v=${GITHUB_SHA::7}\"#g" public/index.html public/receiver.html
+      - name: Stamp the build and cache-bust scripts
+        run: |
+          printf "window.DEMO_BUILD = '%s';\n" "${GITHUB_SHA::7}" > public/version.js
+          sed -i -E "s#(src=\"js/[a-z0-9-]+\.js|src=\"(config|version)\.js)\"#\1?v=${GITHUB_SHA::7}\"#g" public/index.html public/receiver.html
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

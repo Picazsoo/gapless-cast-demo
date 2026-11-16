@@ -24,6 +24,7 @@
 </main>
 <div id="log"></div>
 <audio id="audio"></audio>
+<script src="version.js"></script>
 <script src="js/flac-mp4.js"></script>
 <script src="js/sample-accurate-sb.js"></script>
 <script src="js/mse-queue.js"></script>
@@ -92,7 +93,7 @@
   options.customNamespaces = {};
   options.customNamespaces[NS] = cast.framework.system.MessageType.JSON;
   context.start(options);
-  log('receiver ready: ' + navigator.userAgent);
+  log('receiver ready (build ' + (window.DEMO_BUILD || 'dev') + '): ' + navigator.userAgent);
 })();
 </script>
 </body>

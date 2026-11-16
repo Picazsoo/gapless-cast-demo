@@ -569,7 +569,17 @@
     <p>An independent demo. It is not affiliated with Google or with any music service, and contains no code from any of their receivers. The code is under the MIT licence. Source, measurements and set-up: <a href="https://github.com/Picazsoo/gapless-cast-demo">github.com/Picazsoo/gapless-cast-demo</a>.</p>
     <p>Recording: Ludwig van Beethoven, Symphony No. 5 in C minor, Op. 67, IV. Allegro, by the Skidmore College Orchestra. Public domain, released by <a href="https://musopen.org/">Musopen</a>, via <a href="https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg">Wikimedia Commons</a>.</p>
     <p>Google Cast, Chromecast, Google Home and YouTube Music are trademarks of Google LLC. Spotify, Apple Music and the album titles and artist names shown here belong to their respective owners and are mentioned only to describe them.</p>
+    <p class="muted" id="build"></p>
   </footer>
+<script>
+document.addEventListener('DOMContentLoaded', function () {   // version.js loads further down
+  var b = window.DEMO_BUILD || 'dev', el = document.getElementById('build');
+  if (b === 'dev') { el.textContent = 'Build: local copy'; return; }
+  el.innerHTML = 'Build: <a></a>';
+  el.firstElementChild.textContent = b;
+  el.firstElementChild.href = 'https://github.com/Picazsoo/gapless-cast-demo/commit/' + b;
+});
+</script>
   <audio id="audio"></audio>
 </main>
 <script src="js/flac-mp4.js"></script>
@@ -596,6 +606,7 @@
   })();
 </script>
 <script src="config.js"></script>
+<script src="version.js"></script>
 <script>
 (function () {
   'use strict';

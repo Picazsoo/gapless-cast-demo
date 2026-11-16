@@ -92,7 +92,11 @@
       req.media.streamType = M.StreamType.BUFFERED;
       req.media.metadata = metadata(g.index);
       req.media.duration = album.tracks[g.index].duration;
-      req.currentTime = 0;                        // the stream positions itself (offset is in customData)
+      // Start where the stream starts (its timeline begins at 0, so that is the offset).
+      // The queue seeks there too; telling the Cast framework the same point stops it
+      // from seeking back to 0 after loading, which left playback stuck at 0:00 with
+      // no audio buffered there.
+      req.currentTime = +g.offset || 0;
       req.autoplay = !g.paused;                   // a reload for a seek while paused stays paused
       return req;
     });

@@ -630,7 +630,7 @@
       s.index = data.index; s.position = data.position; s.duration = data.duration;
       if (!s.title && album) s.title = album.tracks[data.index].title;
     }
-    if (type === 'ended') log('album finished');
+    if (type === 'ended' && !(data && data.perTrack && album && data.index + 1 < album.tracks.length)) log('album finished');
     // Paused or resumed elsewhere (Google Home, the TV remote): keep the button in step.
     if (type === 'state' && data.state === 'paused') s.paused = true;
     if (type === 'state' && data.state === 'playing') s.paused = false;

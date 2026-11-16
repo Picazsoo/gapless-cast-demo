@@ -640,7 +640,7 @@
   // Set in public/config.js (git-ignored; copy config.example.js). The Pages workflow writes it from the CAST_APP_ID repository variable.
   var DEFAULT_APP_ID = (window.CAST_DEMO_CONFIG && window.CAST_DEMO_CONFIG.appId) || '';
   var appId = DEFAULT_APP_ID; try { appId = localStorage.getItem('castDemoAppId') || DEFAULT_APP_ID; } catch (e) {}
-  var castApi = false, castInit = '';
+  var castApi = false, castInit = '', userEnded = false;
   $('appId').value = appId;
   $('appId').onchange = function () {
     appId = this.value.trim();
@@ -656,6 +656,10 @@
       var s = session();
       $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
       $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
+      if (ev.sessionState === 'SESSION_ENDED') {
+        if (!userEnded) log('Cast session ended. If speakers were added to it, it now runs on a group named like "<speaker> + 1": press Cast and pick that to control it again.');
+        userEnded = false;
+      }
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
         s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data); });
         s.sendMessage(NS, { cmd: 'info' }).catch(function () {});
@@ -679,7 +683,8 @@
     try { localStorage.setItem('castDemoAppId', appId); } catch (e) {}
     if (!initCast()) { log('the Cast API has not loaded yet; is this page open via http://localhost?'); return; }
     var ctx = cast.framework.CastContext.getInstance();
-    if (session()) { ctx.endCurrentSession(true); return; }
+    // Disconnect leaves the music playing on the speaker (Stop ends it). Reconnecting picks the session up again.
+    if (session()) { userEnded = true; ctx.endCurrentSession(false); log('disconnected; the speaker keeps playing'); return; }
     ctx.requestSession().catch(function (e) { if (e !== 'cancel') log('Cast: ' + e); });
   };
 

@@ -69,13 +69,24 @@
   // framework keep running while a bridge is being made.
   API.rest = 0.5;
   var stepT = 0, busyTotal = 0;
-  function pace() {
+  // owner: the wrapper whose work this is; once it is destroyed its work stops at the next step.
+  var CANCELLED = 'cancelled';
+  function pace(owner) {
+    if (owner && owner.dead) return Promise.reject(new Error(CANCELLED));
     var busy = Date.now() - stepT;
     if (busy < 10) return Promise.resolve();     // fast device: keep going, a pause would cost more than the step
     busyTotal += busy;
-    return new Promise(function (r) { setTimeout(function () { stepT = Date.now(); r(); }, Math.max(1, Math.round(busy * API.rest))); });
+    return new Promise(function (r, j) { setTimeout(function () { stepT = Date.now(); if (owner && owner.dead) j(new Error(CANCELLED)); else r(); }, Math.max(1, Math.round(busy * API.rest))); });
   }
-  async function decodeAll(o, pkts) {
+  // One libopus handler for every wrapper: its encoder/decoder state must not be
+  // shared by two jobs at once (a stopped stream's last bridge and the next one's start).
+  var codecTail = Promise.resolve();
+  function withCodec(fn) {
+    var run = codecTail.then(fn);
+    codecTail = run.catch(function () {});
+    return run;
+  }
+  async function decodeAll(o, pkts, owner) {
     o.h._decoder_ctl(4028, 0);                                  // OPUS_RESET_STATE
     var total = 0, parts = [];
     stepT = Date.now();
@@ -87,7 +98,7 @@
       var c = o.m.HEAPU16, b = o.outP >> 1, out = new Int16Array(n * 2);
       for (var i = 0; i < n * 2; i++) out[i] = c[b + 2 * i] | (c[b + 2 * i + 1] << 8);
       parts.push(out); total += n;
-      await pace();
+      await pace(owner);
     }
     var pcm = new Int16Array(total * 2), q = 0;
     parts.forEach(function (x) { pcm.set(x, q); q += x.length; });
@@ -146,14 +157,17 @@
       this.cur = null;           // current track: {preskip, tso, raw, d, held[], ring[], pend[], pad, endRaw, state}
       this.ranges = [];          // what the player appended, in its own coordinates (samples)
       this.ops = Promise.resolve(); this.gen = 0;
+      var self = this;
       // Load libopus now and run it once on silence: on a slow device the first call
       // (while the JavaScript engine compiles it) is several times slower than later ones.
       this.queue(function () {
-        return loadLib().then(async function (o) {
-          var t0 = Date.now(), z = new Int16Array(960 * 2);
-          o.h._encoder_ctl(4010, COMPLEXITY);
-          for (var i = 0; i < 3; i++) { stepT = Date.now(); var f = encodeFrame(o, z, 0, 960); await pace(); await decodeAll(o, [f]); }
-          log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms, with rests)');
+        return loadLib().then(function (o) {
+          return withCodec(async function () {
+            var t0 = Date.now(), z = new Int16Array(960 * 2);
+            o.h._encoder_ctl(4028, 0); o.h._encoder_ctl(4010, COMPLEXITY);
+            for (var i = 0; i < 3; i++) { stepT = Date.now(); var f = encodeFrame(o, z, 0, 960); await pace(self); await decodeAll(o, [f], self); }
+            log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms, with rests)');
+          }).catch(function (e) { if (e.message !== CANCELLED) throw e; });
         });
       });
       log('SourceBuffer wrapped: one continuous Opus stream, re-encoded only at the joins');
@@ -178,14 +192,45 @@
       this.ops = this.ops.then(function () { if (!self.dead) return fn(); }).catch(function (e) { log('ERROR ' + (e && e.message || e) + ' ' + (e && e.stack || '').split('\n').slice(1, 3).join(' ')); });
       return this.ops;
     }
+    // Resolves with null when the real SourceBuffer took it, else with what went wrong.
     realOp(fn) {
       var real = this.real, self = this;
       return new Promise(function (resolve) {
-        if (self.dead) return resolve();
-        try { fn(); } catch (e) { log('real SourceBuffer: ' + e.name + ' ' + e.message); return resolve(); }
-        if (!real.updating) return resolve();
-        real.addEventListener('updateend', function () { resolve(); }, { once: true });
+        if (self.dead) return resolve(null);
+        try { fn(); } catch (e) { return resolve(e); }
+        if (!real.updating) return resolve(null);
+        var failed = null;
+        function onError() { failed = domError('AppendError', 'the real SourceBuffer rejected the data'); }
+        real.addEventListener('error', onError, { once: true });
+        real.addEventListener('updateend', function () { real.removeEventListener('error', onError); resolve(failed); }, { once: true });
       });
+    }
+    // An append that must get through: on a full buffer make room behind the playhead
+    // and try again; anything else (or a buffer that stays full) is thrown.
+    async appendReal(bytes) {
+      for (var n = 0; ; n++) {
+        var err = await this.realOp(function () { this.real.appendBuffer(bytes); }.bind(this));
+        if (!err || this.dead) return;
+        if (err.name !== 'QuotaExceededError' || n >= 5) throw err;
+        if (n === 0) log('MSE full; making room and retrying');
+        var el = this.element(), rb = this.real.buffered, cut = el ? el.currentTime - 2 : 0;
+        if (rb.length && rb.start(0) < cut) await this.realOp(function () { this.real.remove(0, cut); }.bind(this));
+        await new Promise(function (r) { setTimeout(r, 300 * (n + 1)); });
+      }
+    }
+    element() {
+      var els = document.querySelectorAll('audio,video');
+      for (var i = 0; i < els.length; i++) if (els[i].src && urlToMs.get(els[i].src) === this.ms) return els[i];
+      return null;
+    }
+    // Audio the player was told is buffered never reached MSE: say so, and end the stream with an error.
+    fail(err) {
+      if (this.dead) return;
+      log('ERROR ' + (err && err.name) + ': ' + (err && err.message) + '; ending the stream with an error');
+      this.failed = true;
+      var ms = this.ms;
+      this.destroy();
+      try { if (ms.readyState === 'open') origEos.call(ms, 'decode'); } catch (e) {}
     }
 
     appendBuffer(data) {
@@ -195,14 +240,16 @@
       this.acc = concat([this.acc, bytes]);
       this.updating = true;
       var self = this, gen = this.gen, tso = this._tso, aws = this._aws;
+      var error = null;
       this.queue(function () {
         return loadLib().then(function (o) {
           if (gen !== self.gen || self.dead) return;
           self.lib = o;
           var out = self.parse(o, tso, aws);
           return self.send(out);
-        });
+        }).catch(function (e) { error = e; });
       }).then(function () {
+        if (error) { self.updating = false; self.fire(['error', 'updateend']); self.fail(error); return; }
         if (gen !== self.gen || self.dead) return;
         self.updating = false; self.fire(['update', 'updateend']);
       });
@@ -226,7 +273,7 @@
       if (end === Infinity) { this.cur = null; this.lastOut = null; }   // a restart: nothing to join onto
       var r0 = Math.max(0, start - (end === Infinity ? 0.1 : 0)), r1 = end === Infinity ? Infinity : Math.max(r0, end - 0.05);
       this.queue(function () {
-        return self.realOp(function () { if (r1 > r0) self.real.remove(r0, r1); });
+        return self.realOp(function () { if (r1 > r0) self.real.remove(r0, r1); }).then(function (e) { if (e) log('real remove: ' + e.message); });
       }).then(function () { if (self.dead) return; self.updating = false; self.fire(['update', 'updateend']); });
     }
 
@@ -354,12 +401,12 @@
         var early = a.held.splice(0, a.held.length - KA), me0 = this;     // anything held back after a seek plays now
         early.forEach(function (k) { me0.emit(a, k, out); });
         a.holdAll = false;
-        var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = await decodeAll(o, ctx.map(function (k) { return k.bytes; }));
+        var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = await decodeAll(o, ctx.map(function (k) { return k.bytes; }), this);
         var aStartRaw = ctx[0].raw, heldRaw = a.held[0].raw;
         var aWarm = pa.subarray((heldRaw - WUP * 960 - aStartRaw) * 2, (heldRaw - aStartRaw) * 2);
         var aPart = pa.subarray((heldRaw - aStartRaw) * 2, (a.endRaw - aStartRaw) * 2);
         // B: decode from its start; drop the pre-skip.
-        var pb = await decodeAll(o, b.pend.map(function (k) { return k.bytes; }));
+        var pb = await decodeAll(o, b.pend.slice(0, KB + 2).map(function (k) { return k.bytes; }), this);   // the replaced packets + encoder look-ahead
         var endB = KB * 960 - b.preskip;
         var bPart = pb.subarray(b.preskip * 2, (b.preskip + endB) * 2), bAfter = pb.subarray((b.preskip + endB) * 2);
         var L = aPart.length / 2 + endB, L2 = Math.max(120, Math.round(L / 120) * 120);
@@ -378,11 +425,11 @@
         X.set(aWarm, 0); X.set(S, WUP * 960 * 2); X.set(bAfter, (WUP * 960 + L2) * 2);
         var Y = X.subarray(la * 2), pos = 0, frames = [];
         stepT = Date.now();
-        for (var w = 0; w < WUP; w++) { encodeFrame(o, Y, pos, 960); pos += 960; await pace(); }
+        for (var w = 0; w < WUP; w++) { encodeFrame(o, Y, pos, 960); pos += 960; await pace(this); }
         var left = L2, rem = L2 % 960, sizes = [];
         [480, 240, 120].forEach(function (fs) { if (rem >= fs) { sizes.push(fs); rem -= fs; left -= fs; } });
         for (; left > 0; left -= 960) sizes.push(960);
-        for (var q = 0; q < sizes.length; q++) { frames.push({ bytes: encodeFrame(o, Y, pos, sizes[q]), n: sizes[q] }); pos += sizes[q]; await pace(); }
+        for (var q = 0; q < sizes.length; q++) { frames.push({ bytes: encodeFrame(o, Y, pos, sizes[q]), n: sizes[q] }); pos += sizes[q]; await pace(this); }
         if (this.dead) return;
         // Out positions: the bridge starts where A's held packets would have played.
         var at = this.ppos(a, heldRaw) + a.d;
@@ -397,6 +444,7 @@
         API.stats.joins++; API.stats.ms += ms;
         log('bridge: ' + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms (' + cpu + ' ms of work, the rest pauses)');
       } catch (e) {
+        if (e.message === CANCELLED || this.dead) return;          // this stream was stopped meanwhile
         log('ERROR bridge failed (' + e.message + '); joining the plain way');
         this.flush(a, out, true);
         b.d = 0; b.state = 'pass'; out.push({ aws: Math.max(0, b.tso / SR) });
@@ -410,15 +458,15 @@
       function push() {
         if (!batch.length) return;
         var pk = batch; batch = [];
-        chain = chain.then(function () { return self.realOp(function () { self.real.appendBuffer(cluster(pk)); }); });
+        chain = chain.then(function () { if (!self.dead) return self.appendReal(cluster(pk)); });
       }
       items.forEach(function (it) {
         if (it.job) {                             // a bridge: made in steps, then sent like the rest
           push();
-          chain = chain.then(function () { var o2 = []; return self.bridge(self.lib, it.job, o2).then(function () { return self.send(o2); }); });
+          chain = chain.then(function () { var o2 = []; return withCodec(function () { return self.bridge(self.lib, it.job, o2); }).then(function () { if (!self.dead) return self.send(o2); }); });
           return;
         }
-        if (it.init) { push(); chain = chain.then(function () { return self.realOp(function () { self.real.timestampOffset = -1; self.real.appendBuffer(it.init); }); }); return; }
+        if (it.init) { push(); chain = chain.then(function () { if (self.dead) return; try { self.real.timestampOffset = -1; } catch (e) {} return self.appendReal(it.init); }); return; }
         if (it.aws !== undefined) { push(); chain = chain.then(function () { try { self.real.appendWindowStart = 0; self.real.appendWindowStart = it.aws; } catch (e) { log('appendWindowStart: ' + e.message); } }); return; }
         if (batch.length && (it.out - batch[0].out > SR || it.pad)) push();
         batch.push(it);
@@ -433,12 +481,14 @@
       return this.queue(function () {
         if (!self.cur) return;
         var out = []; self.flush(self.cur, out, true);
-        return self.send(out);
+        return self.send(out).catch(function (e) { self.fail(e); });
       });
     }
     destroy() { this.dead = true; this.gen++; this.acc = new Uint8Array(0); this.cur = null; }
   }
 
+  var urlToMs = new Map(), origCreate = URL.createObjectURL;
+  URL.createObjectURL = function (o) { var u = origCreate.apply(this, arguments); if (o instanceof MS) urlToMs.set(u, o); return u; };
   var origAdd = MS.prototype.addSourceBuffer, origRemove = MS.prototype.removeSourceBuffer, origEos = MS.prototype.endOfStream;
   var proxies = new WeakMap();
   MS.prototype.addSourceBuffer = function (type) {
@@ -455,7 +505,7 @@
   MS.prototype.endOfStream = function (err) {
     var p = proxies.get(this), ms = this, args = arguments;
     if (err || !p || p.dead) return origEos.apply(this, args);
-    p.finish().then(function () { if (!p.dead && ms.readyState === 'open') { log('all audio handed to MSE; endOfStream()'); origEos.apply(ms, args); } });
+    p.finish().then(function () { if (!p.dead && !p.failed && ms.readyState === 'open') { log('all audio handed to MSE; endOfStream()'); origEos.apply(ms, args); } });
   };
   API.BridgeSourceBuffer = BridgeSourceBuffer;
 })(window);

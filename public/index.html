@@ -683,8 +683,8 @@
     try { localStorage.setItem('castDemoAppId', appId); } catch (e) {}
     if (!initCast()) { log('the Cast API has not loaded yet; is this page open via http://localhost?'); return; }
     var ctx = cast.framework.CastContext.getInstance();
-    // Disconnect leaves the music playing on the speaker (Stop ends it). Reconnecting picks the session up again.
-    if (session()) { userEnded = true; ctx.endCurrentSession(false); log('disconnected; the speaker keeps playing'); return; }
+    // Disconnect stops the music on the speaker and closes the receiver, like Chrome's own "Stop casting".
+    if (session()) { userEnded = true; ctx.endCurrentSession(true); log('disconnected; playback stopped'); return; }
     ctx.requestSession().catch(function (e) { if (e !== 'cancel') log('Cast: ' + e); });
   };
 

@@ -709,8 +709,13 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
         userEnded = false;
       }
       if (s && (ev.sessionState === 'SESSION_STARTED' || ev.sessionState === 'SESSION_RESUMED')) {
-        s.addMessageListener(NS, function (ns, raw) { var m = JSON.parse(raw); onReport(m.type, m.data, 'cast'); });
-        s.sendMessage(NS, { cmd: 'info' }).catch(function () {});
+        var heard = false;
+        s.addMessageListener(NS, function (ns, raw) { heard = true; var m = JSON.parse(raw); onReport(m.type, m.data, 'cast'); });
+        s.sendMessage(NS, { cmd: 'info' }).catch(function (e) { log('the receiver did not accept a message: ' + (e && e.code || e)); });
+        // Receiver logs travel over this same channel, so silence here means the receiver page itself never started.
+        setTimeout(function () {
+          if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
+        }, 15000);
         noSampleAccurate.cast = false;
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         log('Cast session: ' + s.getCastDevice().friendlyName);
@@ -734,7 +739,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var ctx = cast.framework.CastContext.getInstance();
     // Disconnect stops the music on the speaker and closes the receiver, like Chrome's own "Stop casting".
     if (session()) { userEnded = true; ctx.endCurrentSession(true); log('disconnected; playback stopped'); return; }
-    ctx.requestSession().catch(function (e) { if (e !== 'cancel') log('Cast: ' + e); });
+    log('starting a Cast session with receiver app ' + appId + '…');
+    ctx.requestSession().catch(function (e) { log(e === 'cancel' ? 'Cast device picker closed' : 'Cast session failed: ' + e); });
   };
 
   function send(cmd) {

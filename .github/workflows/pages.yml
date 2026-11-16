@@ -24,7 +24,8 @@ jobs:
       - name: Write config.js
         env:
           CAST_APP_ID: ${{ vars.CAST_APP_ID }}
-        run: printf "window.CAST_DEMO_CONFIG = { appId: '%s' };\n" "$CAST_APP_ID" > public/config.js
+        run: |
+          printf "window.CAST_DEMO_CONFIG = { appId: '%s' };\n" "$CAST_APP_ID" > public/config.js
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public

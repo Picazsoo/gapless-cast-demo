@@ -219,6 +219,12 @@
   .logopt { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; margin-top: 8px; }
   .logopt a { font-size: 14px; }
   .reviewnote { font-size: 13px; margin: 8px 0 0; }
+  .senddlg { width: min(720px, calc(100vw - 32px)); max-height: calc(100vh - 48px); border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: var(--fg); padding: 18px 20px; box-sizing: border-box; }
+  .senddlg::backdrop { background: rgba(0,0,0,.45); }
+  .senddlg h3 { margin: 0 0 4px; font-size: 18px; }
+  .senddlg p { margin: 0 0 10px; font-size: 14px; }
+  .senddlg pre { max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0; }
+  #sendStatus { font-size: 14px; }
   .sendrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
   .sendrow .or { color: var(--muted); font-size: 14px; }
   .sendrow [hidden] { display: none; }
@@ -340,7 +346,7 @@
 
     <details class="card report" id="report">
       <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
-      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting. No GitHub account? Send the same report through a short form instead, or copy it as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
+      <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting. No GitHub account? Send it straight from this page instead (you see it first, no sign-in), or copy it as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
         <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
@@ -360,7 +366,8 @@
       <div class="logopt"><label class="chk"><input type="checkbox" id="rLog" checked> Include the player log (its latest lines, with your device's name removed)</label> <a href="#playerLog" id="rSeeLog">See the log</a></div>
       <p id="rDevice" class="muted" style="font-size:13px;margin:12px 0 0">Connect with Cast first, so the receiver's details are included.</p>
       <div class="sendrow"><button class="primary" id="rSend">Open GitHub issue</button><span class="or" id="rFormOr" hidden>or</span><button type="button" id="rForm" hidden>Send without an account</button><span class="or">or</span><button type="button" id="rCopy">Copy report to share elsewhere</button><span id="rMsg" class="muted"></span></div>
-      <p class="muted reviewnote">Nothing is sent from this page. The GitHub issue and the form open pre-filled, so you can read and change everything before you submit it. Copy puts the report on your clipboard, and you see it all when you paste it.</p>
+      <p class="muted reviewnote">You see everything before it is shared. The GitHub issue opens pre-filled, so you can read and change it before you submit. Sending without an account first shows you the full report, and you can cancel to change it. Copy puts the report on your clipboard, and you see it all when you paste it.</p>
+      <dialog id="sendDlg" class="senddlg" aria-labelledby="sendTitle"><h3 id="sendTitle">This is what will be sent</h3><p class="muted">It goes to a Google Form that only the author of this page can read. No sign-in needed. To change something, press Cancel, edit the report or untick the log, and send again.</p><pre id="sendPreview"></pre><div class="sendrow"><button type="button" class="primary" id="sendGo">Send</button><button type="button" id="sendCancel">Cancel</button><span id="sendStatus" class="muted"></span></div></dialog>
     </details>
   </section>
 
@@ -985,22 +992,43 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (f.log) q.log = f.log;
     window.open('https://github.com/' + REPO + '/issues/new?' + query(q), '_blank', 'noopener');
   };
+  function reportText(f) {
+    return f.title + '\n\nSpeaker group: ' + f.group + '\n\nWhat I heard at the track changes:\n' + f.results +
+      '\n\nReceiver:\n' + f.receiver + (f.notes ? '\n\nNotes:\n' + f.notes : '') + (f.log ? '\n\nPlayer log:\n' + f.log : '') +
+      '\n\n(' + location.origin + location.pathname + ', build ' + (window.DEMO_BUILD || 'unknown') + ')';
+  }
   $('rCopy').onclick = function () {
     var f = reportFields(6000);   // keeps it well inside a Reddit comment
     if (!f) return; hideNudge(true);
-    var text = f.title + '\n\nSpeaker group: ' + f.group + '\n\nWhat I heard at the track changes:\n' + f.results +
-      '\n\nReceiver:\n' + f.receiver + (f.notes ? '\n\nNotes:\n' + f.notes : '') + (f.log ? '\n\nPlayer log:\n' + f.log : '') +
-      '\n\n(' + location.origin + location.pathname + ', build ' + (window.DEMO_BUILD || 'unknown') + ')';
-    copyText(text, $('rMsg'));
+    copyText(reportText(f), $('rMsg'));
   };
+  // "Send without an account": shows the whole report, then posts it to the Google Form in the background.
+  // No Google page and no sign-in for the visitor; the answers land in the form's responses.
+  var pending = null;
   if (FORM.url) {
     $('rForm').hidden = false; $('rFormOr').hidden = false;
     $('rForm').onclick = function () {
-      var f = reportFields(3000);   // the form is opened through a URL too
-      if (!f) return; hideNudge(true);
-      var q = { usp: 'pp_url' };
-      Object.keys(FORM.entries).forEach(function (k) { if (FORM.entries[k] && f[k]) q[FORM.entries[k]] = f[k]; });
-      window.open(FORM.url + '?' + query(q), '_blank', 'noopener');
+      pending = reportFields(8000);
+      if (!pending) return;
+      $('sendPreview').textContent = reportText(pending);
+      $('sendStatus').textContent = ''; $('sendGo').disabled = false; $('sendGo').hidden = false; $('sendCancel').textContent = 'Cancel';
+      $('sendDlg').showModal();
+    };
+    $('sendCancel').onclick = function () { $('sendDlg').close(); };
+    $('sendGo').onclick = function () {
+      if (!pending) return;
+      var body = new URLSearchParams();
+      Object.keys(FORM.entries).forEach(function (k) { if (FORM.entries[k] && pending[k]) body.append(FORM.entries[k], pending[k]); });
+      $('sendGo').disabled = true; $('sendStatus').textContent = 'Sending…';
+      // Google Forms gives no readable answer to another site (no-cors), so a finished request is the best signal we get.
+      fetch(FORM.url.replace(/\/viewform.*$/, '/formResponse'), { method: 'POST', mode: 'no-cors', body: body })
+        .then(function () {
+          hideNudge(true); pending = null;
+          $('sendStatus').textContent = 'Sent. Thank you!'; $('sendGo').hidden = true; $('sendCancel').textContent = 'Close';
+        }, function () {
+          $('sendGo').disabled = false;
+          $('sendStatus').textContent = 'Sending failed (maybe a blocker or no connection). You can use "Copy report to share elsewhere" instead.';
+        });
     };
   }
 

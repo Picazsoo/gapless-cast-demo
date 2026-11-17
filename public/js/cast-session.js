@@ -26,7 +26,12 @@
 
   function CastSession(context, el, report) {
     var pm = context.getPlayerManager(), album = null;
-    var player = new QueuePlayer(el, function (type, data) { onPlayerEvent(type, data); report(type, data); });
+    var player = new QueuePlayer(el, function (type, data) {
+      // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
+      if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }
+      onPlayerEvent(type, data); report(type, data);
+    });
+    var rolledTo = -1;                            // per-track: the track loaded because the previous one ended
     // mode: what is playing now; requested: picked while paused or stopped, used by the next play.
     var kind = null, mode = 'sample-accurate', actual = mode, requested = null, pending = null, pendingTimer = null, startGen = 0;
     function log(m) { report('log', m); }
@@ -123,7 +128,7 @@
     function restartAt(index, offset, delay, play) {
       index = Math.max(0, Math.min(album.tracks.length - 1, index));
       offset = Math.max(0, Math.min(offset, album.tracks[index].duration - 1));
-      pending = { index: index, offset: offset };
+      pending = { index: index, offset: offset }; rolledTo = -1;
       clearTimeout(pendingTimer);
       pendingTimer = setTimeout(function () {
         var x = pending; pending = null;
@@ -198,7 +203,7 @@
     function onPlayerEvent(type, data) {
       if (type === 'ended' && data && kind === 'stream') {
         // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
-        if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0); }
+        if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); rolledTo = data.index + 1; loadStream('stock', data.index + 1, 0); }
         else { log('album finished'); stopped(); }
         return;
       }

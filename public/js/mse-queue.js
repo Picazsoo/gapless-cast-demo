@@ -68,6 +68,7 @@
   function QueuePlayer(el, onEvent) {
     this.el = el; this.emit = onEvent || function () {};
     this.gen = 0;
+    this.jumps = 0;                               // restarts in place (seeks, skips): a track change after one is not a join
   }
 
   // Which element plays our stream. Normally the one we were given; when the
@@ -111,12 +112,17 @@
       if (!self.external) el.play().catch(function (e) { self.emit('log', 'play(): ' + e.message); });
     }, { once: true });
     if (!this.external) this.el.src = this.url;
-    var playingIndex = -1;
+    var playingIndex = -1, jumps = this.jumps;
     this.timer = setInterval(function () {
       if (ms !== self.ms || !self.offsets) return;
       var at = self.position();
       if (!at) return;
-      if (at.index !== playingIndex) { playingIndex = at.index; self.emit('track', { index: at.index, title: tracks[at.index].title }); }
+      if (at.index !== playingIndex) {
+        // natural: playback rolled over from the previous track by itself (no seek, skip or restart since)
+        var natural = playingIndex >= 0 && at.index === playingIndex + 1 && jumps === self.jumps;
+        playingIndex = at.index; jumps = self.jumps;
+        self.emit('track', { index: at.index, title: tracks[at.index].title, natural: natural });
+      }
       self.emit('time', { index: at.index, position: at.position, duration: tracks[at.index].duration });
     }, 250);
   };
@@ -128,7 +134,7 @@
   QueuePlayer.prototype.reset = function (tracks, startIndex, startOffset) {
     var ms = this.ms, sb = this.sb, self = this;
     if (!ms || !sb || this.perTrack || ms.readyState === 'closed') return false;
-    this.gen++;                                               // the running pump stops at its next step
+    this.gen++; this.jumps++;                                 // the running pump stops at its next step
     var gen = this.gen;
     function idle() { return sb.updating ? new Promise(function (r) { sb.addEventListener('updateend', function () { r(); }, { once: true }); }) : Promise.resolve(); }
     try { sb.abort(); } catch (e) {}

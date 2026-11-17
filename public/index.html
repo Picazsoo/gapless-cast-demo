@@ -715,10 +715,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (type === 'error') return log('ERROR ' + data);
     var s = players[from];
     if (type === 'track') {
-      // Only a natural crossing counts: the next track, reached from the last seconds of the previous one (not a jump).
-      var manual = from === 'cast' && data.index === manualTrack && Date.now() < manualUntil;
-      if (manual) manualTrack = -1;
-      if (from === 'cast' && !manual && s.index >= 0 && data.index === s.index + 1 && !s.paused && s.duration && s.position > s.duration - 3) heardJoin();
+      // Only a natural crossing counts: the receiver says whether playback rolled over by itself (not Play, Next, a seek or a load).
+      if (from === 'cast' && data.natural && !s.paused) heardJoin();
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
@@ -737,7 +735,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
 
   // A gentle nudge towards the report once someone has heard track changes on a Cast device.
-  var heardModes = {}, nudgeOff = false, manualTrack = -1, manualUntil = 0;
+  var heardModes = {}, nudgeOff = false;
   try { nudgeOff = localStorage.getItem('castDemoNudge') === 'off'; } catch (e) {}
   function heardJoin() {
     var m = playingMode.cast || (noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen);
@@ -824,7 +822,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
         setTimeout(function () {
           if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
         }, 15000);
-        noSampleAccurate.cast = false;
+        noSampleAccurate.cast = false; players.cast = blank();   // forget the previous device's position
         heardModes = {}; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         var nm = s.getCastDevice().friendlyName;
@@ -869,14 +867,15 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   }
   $('vol').addEventListener('input', function () {
     if (!volDragging) { volDragging = true; volSession = session(); }   // a whole drag belongs to the device it started on
-    else if (volSession !== session()) return;  // device changed mid-drag: ignore the rest of it
+    else if (volSession !== session()) { var c = session(); if (c) showVolume(c); return; }   // device changed mid-drag: ignore the rest, keep showing the new device
     $('volPct').textContent = this.value + '%';
     volPending = this.value / 100;
     if (!volTimer) volTimer = setTimeout(sendVolume, 150);   // a drag sends a few updates, not dozens
   });
   $('vol').addEventListener('change', function () {
-    var s = volSession || session(); volDragging = false;
-    if (s !== session()) { clearTimeout(volTimer); volTimer = 0; volPending = null; volSession = null; return; }
+    var s = volSession; volDragging = false;
+    // No input seen on the current device (a leftover from before a reconnect), or the device changed: drop it and show the current level.
+    if (!s || s !== session()) { clearTimeout(volTimer); volTimer = 0; volPending = null; volSession = null; var c = session(); if (c) showVolume(c); return; }
     volSession = s; volPending = this.value / 100; if (!volTimer) sendVolume();
   });
   $('mute').onclick = function () {
@@ -907,7 +906,6 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       var s = session();
       if (!s) { log('not connected to a Cast device'); return; }
       el.pause();
-      if (cmd.cmd === 'play') { manualTrack = cmd.index; manualUntil = Date.now() + 8000; }   // the track this load starts on is not a heard join
       s.sendMessage(NS, cmd).catch(function (e) { log('send failed: ' + (e && e.code || e)); });
     } else Demo.handle(cmd, el);
   }

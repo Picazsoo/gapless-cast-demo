@@ -225,6 +225,8 @@
   .senddlg p { margin: 0 0 10px; font-size: 14px; }
   .senddlg pre { max-height: 50vh; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; margin: 0; }
   #sendStatus { font-size: 14px; }
+  .namehint { margin: 6px 0 0; font-size: 14px; color: var(--accent); }
+  .namehint[hidden] { display: none; }
   .sendrow { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin-top: 10px; }
   .sendrow .or { color: var(--muted); font-size: 14px; }
   .sendrow [hidden] { display: none; }
@@ -351,6 +353,7 @@
         <label class="grow">What did you cast to? <span class="muted">(optional, any description is fine)</span> <input id="rModel" placeholder="e.g. Nest Mini, old Chromecast, &quot;some Sony TV&quot;, WiiM speaker"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
       </div>
+      <p id="rNameHint" class="namehint" hidden>Even a rough guess helps, like &quot;Samsung TV&quot; or &quot;small Google speaker&quot;. Or just press the button again to send it without one.</p>
       <div class="tablewrap">
         <table class="verdicts">
           <thead><tr><th>What you heard at the track changes</th><th>Gap</th><th>Click</th><th>Seamless</th><th>Not tried</th></tr></thead>
@@ -969,9 +972,17 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   };
   // "Report your result": the same report as a GitHub issue, a Google Form or plain text. The visitor reviews it before sending.
   // logMax: how much log fits (URL-encoded characters), or 0 to leave it out.
+  var nameAsked = false;
   function reportFields(logMax) {
     var model = $('rModel').value.trim();
-    if (!model) model = 'device not named';   // optional: the receiver's own details still identify it
+    // Optional, but ask once: the first send without a name points at the field; pressing again sends anyway.
+    if (!model && !nameAsked) {
+      nameAsked = true; $('rNameHint').hidden = false;
+      $('rModel').focus(); $('rModel').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      return null;
+    }
+    $('rNameHint').hidden = true;
+    if (!model) model = 'device not named';   // the receiver's own details still identify it
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
     var noFlac = target() === 'cast'
       ? noSampleAccurate.cast || !!(castDevice && (castDevice.sampleAccurate === false || (castDevice.mse && castDevice.mse.flacMp4 === false)))

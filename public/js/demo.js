@@ -32,7 +32,8 @@
     if (sa && sa.supported() && sa.decoder() === 'Web Audio') return { mode: 'sample-accurate', why: 'Web Audio and FLAC in MSE available' };
     var lacks = !sa || !sa.supported() ? (sa ? sa.missing() : 'the sample-accurate code') : 'Web Audio';
     if (ob && ob.supported()) return { mode: 'opus-bridge', why: 'no ' + lacks + ', so only the joins are re-encoded' };
-    return { mode: 'plain', why: 'no ' + lacks + ' and no Opus in MSE' };
+    // Safety net only: every mode here streams Opus through MSE, so a device without it can't play this demo at all.
+    return { mode: 'plain', why: 'this device reports no Opus support in MSE, so none of the modes is likely to play' };
   }
   var mode = 'sample-accurate', paused = false, startGen = 0;
 

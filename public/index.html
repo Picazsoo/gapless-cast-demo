@@ -720,11 +720,6 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
-      // The "you played this" tag: about 5 s of Cast playback in a mode is enough to judge it (Jump starts 4 s before a join).
-      if (from === 'cast' && !s.paused && data.index === s.index && data.position > s.position && data.position - s.position < 2) {
-        var pm = castMode(); playedFor[pm] = (playedFor[pm] || 0) + data.position - s.position;
-        if (playedFor[pm] >= 5 && !heardModes[pm]) { heardModes[pm] = 1; markHeard(); }
-      }
       s.index = data.index; s.position = data.position; s.duration = data.duration;
       if (!s.title && album) s.title = album.tracks[data.index].title;
     }
@@ -740,11 +735,10 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
 
   // A gentle nudge towards the report once someone has heard track changes on a Cast device.
-  var heardModes = {}, playedFor = {}, nudgeOff = false;   // heardModes: rows tagged "you played this"
-  function castMode() { return playingMode.cast || (noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen); }
+  var heardModes = {}, nudgeOff = false;
   try { nudgeOff = localStorage.getItem('castDemoNudge') === 'off'; } catch (e) {}
   function heardJoin() {
-    var m = castMode();
+    var m = playingMode.cast || (noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen);
     heardModes[m] = (heardModes[m] || 0) + 1;
     markHeard();
     if (!nudgeOff && !$('report').open) $('nudge').hidden = false;
@@ -829,7 +823,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
           if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
         }, 15000);
         noSampleAccurate.cast = false; players.cast = blank();   // forget the previous device's position
-        heardModes = {}; playedFor = {}; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
+        heardModes = {}; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         var nm = s.getCastDevice().friendlyName;
         if (nm && castNames.indexOf(nm) < 0) castNames.push(nm);

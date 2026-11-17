@@ -65,6 +65,7 @@
       mode = m; requested = null; index = index || 0; offset = offset || 0;
       var want = m === 'auto' ? Demo.autoMode().mode : m;   // compare what would actually play, not the literal request
       if (want && want !== 'stock' && kind === 'stream' && player.ms && live() && actual === want && SampleAccurateSB.enabled === (want === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (want === 'opus-bridge')) {
+        if (m === 'auto') log('automatic mode chose ' + MODES[want] + ': ' + Demo.autoMode().why + ' (already playing that way, continuing in place)');
         restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
         return Promise.resolve();
       }

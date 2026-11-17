@@ -716,7 +716,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var s = players[from];
     if (type === 'track') {
       // Only a natural crossing counts: the next track, reached from the last seconds of the previous one (not a jump).
-      if (from === 'cast' && s.index >= 0 && data.index === s.index + 1 && !s.paused && s.duration && s.position > s.duration - 3) heardJoin();
+      var manual = from === 'cast' && data.index === manualTrack && Date.now() < manualUntil;
+      if (manual) manualTrack = -1;
+      if (from === 'cast' && !manual && s.index >= 0 && data.index === s.index + 1 && !s.paused && s.duration && s.position > s.duration - 3) heardJoin();
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
@@ -735,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
 
   // A gentle nudge towards the report once someone has heard track changes on a Cast device.
-  var heardModes = {}, nudgeOff = false;
+  var heardModes = {}, nudgeOff = false, manualTrack = -1, manualUntil = 0;
   try { nudgeOff = localStorage.getItem('castDemoNudge') === 'off'; } catch (e) {}
   function heardJoin() {
     var m = playingMode.cast || (noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen);
@@ -823,7 +825,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
           if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
         }, 15000);
         noSampleAccurate.cast = false;
-        heardModes = {}; playingMode.cast = ''; markHeard();   // a new device starts with a clean slate
+        heardModes = {}; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         var nm = s.getCastDevice().friendlyName;
         if (nm && castNames.indexOf(nm) < 0) castNames.push(nm);
@@ -858,21 +860,25 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   }
   function sendVolume() {
     volTimer = 0;
-    var s = volSession; volSession = null;
+    var s = volSession;
+    if (!volDragging) volSession = null;       // the gesture is over
     if (!s || s !== session() || volPending == null) { volPending = null; return; }   // that device is gone: drop it
     var level = volPending; volPending = null;
     s.setVolume(level).catch(function (e) { log('volume change failed: ' + (e && e.code || e)); });
     if (s.isMute()) s.setMute(false).catch(function () {});
   }
   $('vol').addEventListener('input', function () {
-    volDragging = true;
-    if (volSession && volSession !== session()) { clearTimeout(volTimer); volTimer = 0; }
-    volSession = session();
+    if (!volDragging) { volDragging = true; volSession = session(); }   // a whole drag belongs to the device it started on
+    else if (volSession !== session()) return;  // device changed mid-drag: ignore the rest of it
     $('volPct').textContent = this.value + '%';
     volPending = this.value / 100;
     if (!volTimer) volTimer = setTimeout(sendVolume, 150);   // a drag sends a few updates, not dozens
   });
-  $('vol').addEventListener('change', function () { volDragging = false; volSession = volSession || session(); volPending = this.value / 100; if (!volTimer) sendVolume(); });
+  $('vol').addEventListener('change', function () {
+    var s = volSession || session(); volDragging = false;
+    if (s !== session()) { clearTimeout(volTimer); volTimer = 0; volPending = null; volSession = null; return; }
+    volSession = s; volPending = this.value / 100; if (!volTimer) sendVolume();
+  });
   $('mute').onclick = function () {
     var s = session(); if (!s) return;
     s.setMute(!s.isMute()).then(function () { if (session() === s) showVolume(s); }, function (e) { log('mute failed: ' + (e && e.code || e)); });
@@ -901,6 +907,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       var s = session();
       if (!s) { log('not connected to a Cast device'); return; }
       el.pause();
+      if (cmd.cmd === 'play') { manualTrack = cmd.index; manualUntil = Date.now() + 8000; }   // the track this load starts on is not a heard join
       s.sendMessage(NS, cmd).catch(function (e) { log('send failed: ' + (e && e.code || e)); });
     } else Demo.handle(cmd, el);
   }
@@ -1046,18 +1053,22 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       var id = sending = Date.now();
       $('sendGo').disabled = true; $('sendCancel').disabled = true; $('sendStatus').textContent = 'Sending…';
       // Google Forms gives no readable answer to another site (no-cors): we only know the request went out, not that it was accepted.
-      fetch(FORM.url.replace(/\/viewform.*$/, '/formResponse'), { method: 'POST', mode: 'no-cors', body: body })
+      var ctl = window.AbortController ? new AbortController() : null;
+      var limit = setTimeout(function () { if (ctl) ctl.abort(); else fail(); }, 20000);   // never keep the dialog locked for long
+      function fail() {
+        if (sending !== id) return;
+        sending = 0;
+        $('sendGo').disabled = false; $('sendCancel').disabled = false;
+        $('sendStatus').textContent = 'Sending failed or took too long (maybe a blocker or no connection). You can try again, or use "Copy report to share elsewhere" instead.';
+      }
+      fetch(FORM.url.replace(/\/viewform.*$/, '/formResponse'), { method: 'POST', mode: 'no-cors', body: body, signal: ctl ? ctl.signal : undefined })
         .then(function () {
+          clearTimeout(limit);
           if (sending !== id) return;
           sending = 0; reported(); pending = null;
           $('sendStatus').textContent = 'Sent, thank you! Google doesn\'t confirm delivery to this page, so if you want to be sure, you can also copy the report and share it elsewhere.';
           $('sendGo').hidden = true; $('sendCancel').disabled = false; $('sendCancel').textContent = 'Close';
-        }, function () {
-          if (sending !== id) return;
-          sending = 0;
-          $('sendGo').disabled = false; $('sendCancel').disabled = false;
-          $('sendStatus').textContent = 'Sending failed (maybe a blocker or no connection). You can use "Copy report to share elsewhere" instead.';
-        });
+        }, function () { clearTimeout(limit); fail(); });
     };
   }
 

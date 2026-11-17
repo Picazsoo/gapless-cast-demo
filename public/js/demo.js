@@ -22,25 +22,40 @@
     'stock': 'per-track loading (stock, one MediaSource per track)',
     'plain': 'plain MSE gapless queue (one SourceBuffer)',
     'sample-accurate': 'sample-accurate SourceBuffer (one SourceBuffer)',
-    'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]'
+    'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]',
+    'auto': 'automatic (picks a gapless mode from what this device supports)'
   };
+  // 'auto': choose by feature set. Web Audio + FLAC in MSE: lossless sample-accurate.
+  // Otherwise (lightweight speakers without Web Audio): the Opus bridge. Else the plain queue.
+  function autoMode() {
+    var sa = global.SampleAccurateSB, ob = global.OpusBridgeSB;
+    if (sa && sa.supported() && sa.decoder() === 'Web Audio') return { mode: 'sample-accurate', why: 'Web Audio and FLAC in MSE available' };
+    var lacks = !sa || !sa.supported() ? (sa ? sa.missing() : 'the sample-accurate code') : 'Web Audio';
+    if (ob && ob.supported()) return { mode: 'opus-bridge', why: 'no ' + lacks + ', so only the joins are re-encoded' };
+    return { mode: 'plain', why: 'no ' + lacks + ' and no Opus in MSE' };
+  }
   var mode = 'sample-accurate', paused = false, startGen = 0;
 
   function start(index, offset) {
     var gen = ++startGen;                        // a Stop (or a newer Play) while the album loads cancels this one
     return loadAlbum().then(function (a) {
       if (gen !== startGen) return;
-      var fellBack = false;
-      if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
-        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this browser lacks; using the plain gapless queue');
-        mode = 'plain'; fellBack = true;
+      var fellBack = false, actual = mode;
+      if (mode === 'auto') {
+        var pick = autoMode(); actual = pick.mode;
+        report('log', 'automatic mode chose ' + MODES[actual] + ': ' + pick.why);
       }
-      SampleAccurateSB.enabled = mode === 'sample-accurate';
-      if (global.OpusBridgeSB) OpusBridgeSB.enabled = mode === 'opus-bridge';
-      report('log', 'mode: ' + MODES[mode] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
+      if (actual === 'sample-accurate' && !SampleAccurateSB.supported()) {
+        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this browser lacks; using the plain gapless queue');
+        actual = 'plain'; fellBack = true;
+        if (mode === 'sample-accurate') mode = 'plain';
+      }
+      SampleAccurateSB.enabled = actual === 'sample-accurate';
+      if (global.OpusBridgeSB) OpusBridgeSB.enabled = actual === 'opus-bridge';
+      report('log', 'mode: ' + MODES[actual] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
       paused = false;
-      player.play(a.tracks, index, offset, mode === 'stock');
-      report('state', { state: 'playing', mode: mode, fallback: fellBack });
+      player.play(a.tracks, index, offset, actual === 'stock');
+      report('state', { state: 'playing', mode: actual, auto: mode === 'auto', fallback: fellBack });
     });
   }
 
@@ -75,7 +90,7 @@
   SampleAccurateSB.onLog = function (m) { report('log', '[sample-accurate] ' + m); };
   if (global.OpusBridgeSB) OpusBridgeSB.onLog = function (m) { report('log', '[opus-bridge] ' + m); };
   global.Demo = {
-    loadAlbum: loadAlbum, handle: handle, joinCommand: joinCommand,
+    loadAlbum: loadAlbum, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
     onReport: function (fn) { report = fn; }
   };
 })(window);

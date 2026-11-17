@@ -317,10 +317,11 @@
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks might remain, depending on the device.</span></label>
-        <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it:</span>
+        <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
           <div class="sub">
             <label><input type="radio" name="mode" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
             <label><input type="radio" name="mode" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
+            <label><input type="radio" name="mode" value="auto"><span><b>Automatic (experimental)</b><span class="d">Lets the receiver choose from what the device supports: lossless where it has Web Audio, the Opus bridge where it doesn't. The log says what it picked.</span></span></label>
           </div>
         </div>
       </div>
@@ -689,7 +690,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   // and act on the one selected under "Play on".
   function blank() { return { index: -1, title: '', position: 0, duration: 0, paused: false }; }
   var players = { local: blank(), cast: blank() };
-  var noSampleAccurate = { local: false, cast: false };   // that target fell back to the plain queue
+  var noSampleAccurate = { local: false, cast: false };
+  var playingMode = { local: '', cast: '' };   // that target fell back to the plain queue
   var chosen = pick('mode');   // the mode you picked; a target without sample-accurate support shows (and plays) plain instead
   function target() { return pick('target'); }
   function render() {
@@ -726,6 +728,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (type === 'state' && data.state === 'playing') s.paused = false;
     if (type === 'state' && data.state === 'stopped') players[from] = blank();
     if (type === 'state' && data.fallback) noSampleAccurate[from] = true;
+    if (type === 'state' && data.mode) playingMode[from] = data.mode;   // what actually plays (automatic mode reports its pick)
     if (from === target()) render();
   }
   Demo.onReport(function (type, data) { onReport(type, data, 'local'); });
@@ -734,7 +737,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var heardModes = {}, nudgeOff = false;
   try { nudgeOff = localStorage.getItem('castDemoNudge') === 'off'; } catch (e) {}
   function heardJoin() {
-    var m = noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen;
+    var m = playingMode.cast || (noSampleAccurate.cast && chosen === 'sample-accurate' ? 'plain' : chosen);
     heardModes[m] = (heardModes[m] || 0) + 1;
     markHeard();
     if (!nudgeOff && !$('report').open) $('nudge').hidden = false;

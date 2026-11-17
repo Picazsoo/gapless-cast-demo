@@ -21,13 +21,14 @@
   var MODES = { 'stock': 'per-track (one Cast media item and MediaSource per track)',
                 'plain': 'plain MSE gapless queue (one continuous stream)',
                 'sample-accurate': 'sample-accurate SourceBuffer (one continuous stream)',
-                'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]' };
+                'opus-bridge': 'Opus bridge (one continuous Opus stream, joins re-encoded) [prototype]',
+                'auto': 'automatic (picks a gapless mode from what this device supports)' };
 
   function CastSession(context, el, report) {
     var pm = context.getPlayerManager(), album = null;
     var player = new QueuePlayer(el, function (type, data) { onPlayerEvent(type, data); report(type, data); });
     // mode: what is playing now; requested: picked while paused or stopped, used by the next play.
-    var kind = null, mode = 'sample-accurate', requested = null, pending = null, pendingTimer = null, startGen = 0;
+    var kind = null, mode = 'sample-accurate', actual = mode, requested = null, pending = null, pendingTimer = null, startGen = 0;
     function log(m) { report('log', m); }
     function attempt(what, f) { try { f(); } catch (e) { log('skipped ' + what + ': ' + (e && e.message || e)); } }
     function abs(u) { return new URL(u, location.href).href; }
@@ -79,16 +80,21 @@
       }
       clearTimeout(pendingTimer); pending = null;
       log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
-      mode = g.mode;
-      if (mode === 'sample-accurate' && !SampleAccurateSB.supported()) {
-        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this device lacks; playing the plain gapless queue instead');
-        mode = 'plain';
+      mode = g.mode; actual = mode;
+      if (mode === 'auto') {
+        var pick = Demo.autoMode(); actual = pick.mode;
+        log('automatic mode chose ' + MODES[actual] + ': ' + pick.why);
       }
-      report('state', { state: g.paused ? 'paused' : 'playing', mode: mode, fallback: mode !== g.mode });
+      if (actual === 'sample-accurate' && !SampleAccurateSB.supported()) {
+        report('error', 'sample-accurate mode needs ' + SampleAccurateSB.missing() + ', which this device lacks; playing the plain gapless queue instead');
+        actual = 'plain';
+        if (mode === 'sample-accurate') mode = 'plain';
+      }
+      report('state', { state: g.paused ? 'paused' : 'playing', mode: actual, auto: g.mode === 'auto', fallback: g.mode !== 'auto' && actual !== g.mode });
       kind = 'stream';
-      SampleAccurateSB.enabled = mode === 'sample-accurate';
-      if (global.OpusBridgeSB) OpusBridgeSB.enabled = mode === 'opus-bridge';
-      player.play(album.tracks, g.index, g.offset, mode === 'stock', { external: true });
+      SampleAccurateSB.enabled = actual === 'sample-accurate';
+      if (global.OpusBridgeSB) OpusBridgeSB.enabled = actual === 'opus-bridge';
+      player.play(album.tracks, g.index, g.offset, actual === 'stock', { external: true });
       req.media.contentUrl = player.url;          // our MediaSource: the Cast framework plays it on its media element
       req.media.contentType = 'audio/mp4';
       req.media.streamType = M.StreamType.BUFFERED;
@@ -218,7 +224,7 @@
     }
     pm.setMessageInterceptor(M.MessageType.STOP, function (req) { stopped(); return req; });
     pm.addEventListener(E.PAUSE, function () { if (kind) report('state', { state: 'paused' }); });
-    pm.addEventListener(E.PLAYING, function () { if (kind) report('state', { state: 'playing', mode: mode }); });
+    pm.addEventListener(E.PLAYING, function () { if (kind) report('state', { state: 'playing', mode: actual, auto: mode === 'auto' }); });
     pm.addEventListener(E.ERROR, function (e) { report('error', 'Cast player: ' + (e.detailedErrorCode || '') + ' ' + (e.reason || '') + ' ' + (e.error && e.error.message || '')); });
 
     // Commands from the demo page (same shape as Demo.handle).

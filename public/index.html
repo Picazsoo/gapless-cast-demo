@@ -716,7 +716,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var s = players[from];
     if (type === 'track') {
       // Only a natural crossing counts: the receiver says whether playback rolled over by itself (not Play, Next, a seek or a load).
-      if (from === 'cast' && data.natural && !s.paused) heardJoin();
+      // (An older receiver doesn't say: then guess from the last position report, the next track reached from the last seconds of this one.)
+      var natural = 'natural' in data ? data.natural : s.index >= 0 && data.index === s.index + 1 && s.duration && s.position > s.duration - 3;
+      if (from === 'cast' && natural && !s.paused) heardJoin();
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {

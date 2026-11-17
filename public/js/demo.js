@@ -29,12 +29,14 @@
   // Otherwise (lightweight speakers without Web Audio): the Opus bridge. Else the plain queue.
   function autoMode() {
     var sa = global.SampleAccurateSB, ob = global.OpusBridgeSB;
-    if (sa && sa.supported() && sa.decoder() === 'Web Audio') return { mode: 'sample-accurate', why: 'Web Audio and FLAC in MSE available' };
-    var lacks = !sa || !sa.supported() ? (sa ? sa.missing() : 'the sample-accurate code') : 'Web Audio';
-    if (ob && ob.supported()) return { mode: 'opus-bridge', why: 'no ' + lacks + ', so only the joins are re-encoded' };
-    // Safety net only: every mode here streams Opus through MSE, so a device without it can't play this demo at all.
-    return { mode: 'plain', why: 'this device reports no Opus support in MSE, so none of the modes is likely to play' };
+    var flac = !!(sa && sa.supported()), webAudio = flac && sa.decoder() === 'Web Audio';
+    var opus = !!(ob && ob.supported());       // native Opus in MSE
+    if (webAudio) return { mode: 'sample-accurate', why: 'Web Audio and FLAC in MSE available' };
+    if (opus) return { mode: 'opus-bridge', why: 'no ' + (flac ? 'Web Audio' : sa.missing()) + ', so only the joins are re-encoded' };
+    if (flac) return { mode: 'sample-accurate', why: 'no Web Audio and no Opus in MSE, so libopus in JavaScript decodes and the result goes out as FLAC' };
+    return { mode: null, why: 'this device supports neither FLAC nor Opus in MSE, so no mode here can play' };
   }
+
   var mode = 'sample-accurate', paused = false, startGen = 0;
 
   function start(index, offset) {
@@ -44,6 +46,7 @@
       var fellBack = false, actual = mode;
       if (mode === 'auto') {
         var pick = autoMode(); actual = pick.mode;
+        if (!actual) { report('error', 'automatic mode: ' + pick.why); report('state', { state: 'stopped' }); return; }
         report('log', 'automatic mode chose ' + MODES[actual] + ': ' + pick.why);
       }
       if (actual === 'sample-accurate' && !SampleAccurateSB.supported()) {

@@ -63,7 +63,8 @@
       var gen = ++startGen;                       // a Stop (or a newer Play) while the album loads cancels this one
       if (!album) return Demo.loadAlbum().then(function (a) { album = a; if (gen === startGen) return start(m, index, offset); });
       mode = m; requested = null; index = index || 0; offset = offset || 0;
-      if (m !== 'stock' && kind === 'stream' && player.ms && live() && SampleAccurateSB.enabled === (m === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (m === 'opus-bridge')) {
+      var want = m === 'auto' ? Demo.autoMode().mode : m;   // compare what would actually play, not the literal request
+      if (want && want !== 'stock' && kind === 'stream' && player.ms && live() && actual === want && SampleAccurateSB.enabled === (want === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (want === 'opus-bridge')) {
         restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
         return Promise.resolve();
       }
@@ -83,6 +84,10 @@
       mode = g.mode; actual = mode;
       if (mode === 'auto') {
         var pick = Demo.autoMode(); actual = pick.mode;
+        if (!actual) {
+          report('error', 'automatic mode: ' + pick.why);
+          var e2 = new M.ErrorData(M.ErrorType.LOAD_FAILED); e2.reason = M.ErrorReason.NOT_SUPPORTED || M.ErrorReason.INVALID_PARAMS; return e2;
+        }
         log('automatic mode chose ' + MODES[actual] + ': ' + pick.why);
       }
       if (actual === 'sample-accurate' && !SampleAccurateSB.supported()) {

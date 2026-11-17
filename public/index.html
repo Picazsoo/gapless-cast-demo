@@ -715,7 +715,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     if (type === 'error') return log('ERROR ' + data);
     var s = players[from];
     if (type === 'track') {
-      if (from === 'cast' && s.index >= 0 && data.index !== s.index && !s.paused) heardJoin();
+      // Only a natural crossing counts: the next track, reached from the last seconds of the previous one (not a jump).
+      if (from === 'cast' && s.index >= 0 && data.index === s.index + 1 && !s.paused && s.duration && s.position > s.duration - 3) heardJoin();
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
@@ -822,6 +823,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
           if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
         }, 15000);
         noSampleAccurate.cast = false;
+        heardModes = {}; playingMode.cast = ''; markHeard();   // a new device starts with a clean slate
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         var nm = s.getCastDevice().friendlyName;
         if (nm && castNames.indexOf(nm) < 0) castNames.push(nm);
@@ -836,13 +838,14 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     return true;
   }
   function showCast(s) {
+    if (!s) { clearTimeout(volTimer); volTimer = 0; volPending = null; volSession = null; volDragging = false; }
     $('status').textContent = s ? 'connected to ' + s.getCastDevice().friendlyName : '';
     $('castLabel').textContent = s ? 'Disconnect' : 'Cast';
     $('volBox').hidden = !s;
     if (s) showVolume(s);
   }
   // Volume of the Cast device or speaker group (the receiver's own volume, as in Google Home).
-  var volDragging = false, volTimer = 0, volPending = null, volHooked = null;
+  var volDragging = false, volTimer = 0, volPending = null, volHooked = null, volSession = null;   // volSession: the session the pending value belongs to
   function showVolume(s) {
     if (volHooked !== s) {
       volHooked = s;
@@ -855,18 +858,21 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   }
   function sendVolume() {
     volTimer = 0;
-    var s = session(); if (!s || volPending == null) return;
+    var s = volSession; volSession = null;
+    if (!s || s !== session() || volPending == null) { volPending = null; return; }   // that device is gone: drop it
     var level = volPending; volPending = null;
     s.setVolume(level).catch(function (e) { log('volume change failed: ' + (e && e.code || e)); });
     if (s.isMute()) s.setMute(false).catch(function () {});
   }
   $('vol').addEventListener('input', function () {
     volDragging = true;
+    if (volSession && volSession !== session()) { clearTimeout(volTimer); volTimer = 0; }
+    volSession = session();
     $('volPct').textContent = this.value + '%';
     volPending = this.value / 100;
     if (!volTimer) volTimer = setTimeout(sendVolume, 150);   // a drag sends a few updates, not dozens
   });
-  $('vol').addEventListener('change', function () { volDragging = false; volPending = this.value / 100; if (!volTimer) sendVolume(); });
+  $('vol').addEventListener('change', function () { volDragging = false; volSession = volSession || session(); volPending = this.value / 100; if (!volTimer) sendVolume(); });
   $('mute').onclick = function () {
     var s = session(); if (!s) return;
     s.setMute(!s.isMute()).then(function () { if (session() === s) showVolume(s); }, function (e) { log('mute failed: ' + (e && e.code || e)); });
@@ -1020,29 +1026,36 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   };
   // "Send without an account": shows the whole report, then posts it to the Google Form in the background.
   // No Google page and no sign-in for the visitor; the answers land in the form's responses.
-  var pending = null;
+  var pending = null, sending = 0;   // sending: id of the report in flight (0 = none)
   if (FORM.url) {
     $('rForm').hidden = false; $('rFormOr').hidden = false;
     $('rForm').onclick = function () {
+      if (sending) return;                     // one report at a time
       pending = reportFields(8000);
       if (!pending) return;
       $('sendPreview').textContent = reportText(pending);
       $('sendStatus').textContent = ''; $('sendGo').disabled = false; $('sendGo').hidden = false; $('sendCancel').textContent = 'Cancel';
       $('sendDlg').showModal();
     };
-    $('sendCancel').onclick = function () { $('sendDlg').close(); };
+    $('sendCancel').onclick = function () { if (!sending) $('sendDlg').close(); };
+    $('sendDlg').addEventListener('cancel', function (e) { if (sending) e.preventDefault(); });   // Esc
     $('sendGo').onclick = function () {
       if (!pending) return;
       var body = new URLSearchParams();
       Object.keys(FORM.entries).forEach(function (k) { if (FORM.entries[k] && pending[k]) body.append(FORM.entries[k], pending[k]); });
-      $('sendGo').disabled = true; $('sendStatus').textContent = 'Sending…';
-      // Google Forms gives no readable answer to another site (no-cors), so a finished request is the best signal we get.
+      var id = sending = Date.now();
+      $('sendGo').disabled = true; $('sendCancel').disabled = true; $('sendStatus').textContent = 'Sending…';
+      // Google Forms gives no readable answer to another site (no-cors): we only know the request went out, not that it was accepted.
       fetch(FORM.url.replace(/\/viewform.*$/, '/formResponse'), { method: 'POST', mode: 'no-cors', body: body })
         .then(function () {
-          reported(); pending = null;
-          $('sendStatus').textContent = 'Sent. Thank you!'; $('sendGo').hidden = true; $('sendCancel').textContent = 'Close';
+          if (sending !== id) return;
+          sending = 0; reported(); pending = null;
+          $('sendStatus').textContent = 'Sent, thank you! Google doesn\'t confirm delivery to this page, so if you want to be sure, you can also copy the report and share it elsewhere.';
+          $('sendGo').hidden = true; $('sendCancel').disabled = false; $('sendCancel').textContent = 'Close';
         }, function () {
-          $('sendGo').disabled = false;
+          if (sending !== id) return;
+          sending = 0;
+          $('sendGo').disabled = false; $('sendCancel').disabled = false;
           $('sendStatus').textContent = 'Sending failed (maybe a blocker or no connection). You can use "Copy report to share elsewhere" instead.';
         });
     };

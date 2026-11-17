@@ -120,9 +120,12 @@
       if (at.index !== playingIndex) {
         // natural: playback rolled over from the previous track by itself (no seek, skip or restart since)
         var natural = playingIndex >= 0 && at.index === playingIndex + 1 && jumps === self.jumps;
-        playingIndex = at.index; jumps = self.jumps;
+        playingIndex = at.index;
         self.emit('track', { index: at.index, title: tracks[at.index].title, natural: natural });
       }
+      // Once a restart has been laid out and the playhead is at its new position, that is the new
+      // baseline, even on the same track (a seek within the track must not spoil the next real join).
+      if (jumps !== self.jumps && self.runJumps === self.jumps && self.element().currentTime >= self.offsets[0] - 0.5) jumps = self.jumps;
       self.emit('time', { index: at.index, position: at.position, duration: tracks[at.index].duration });
     }, 250);
   };
@@ -159,7 +162,7 @@
     var self = this, gen = ++this.gen, ms = this.ms, sb = this.sb;
     var offsets = [], t0 = base;
     list.forEach(function (t) { offsets.push(t0); t0 = Math.round((t0 + t.duration) * 1000) / 1000; });
-    this.list = list; this.offsets = offsets; this.base = startIndex;
+    this.list = list; this.offsets = offsets; this.base = startIndex; this.runJumps = this.jumps;   // this layout belongs to the latest restart
     var cur = -1, files = [], current = null, next = 0, eos = false;
     var seekTo = base + (startOffset || 0);  // applied once data can be positioned
     function alive() { return gen === self.gen && ms === self.ms; }

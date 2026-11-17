@@ -28,7 +28,7 @@
     var pm = context.getPlayerManager(), album = null;
     var player = new QueuePlayer(el, function (type, data) {
       // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
-      if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }
+      if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }   // (rolledTo: set by the LOAD that auto-advanced)
       onPlayerEvent(type, data); report(type, data);
     });
     var rolledTo = -1;                            // per-track: the track loaded because the previous one ended
@@ -55,12 +55,12 @@
     function live() { return !!pm.getMediaInformation() && pm.getPlayerState() !== M.PlayerState.IDLE; }
 
     // ---------------------------------------------------------- loading
-    function loadStream(m, index, offset, paused) {
+    function loadStream(m, index, offset, paused, rolled) {
       var req = new M.LoadRequestData();
       req.media = new M.MediaInformation();
       req.media.contentId = 'gapless-demo:album';
       req.media.contentType = 'audio/mp4';
-      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused } };
+      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused, rolled: !!rolled } };   // rolled: the previous track ended by itself
       req.autoplay = !paused;
       return pm.load(req);
     }
@@ -105,6 +105,7 @@
       kind = 'stream';
       SampleAccurateSB.enabled = actual === 'sample-accurate';
       if (global.OpusBridgeSB) OpusBridgeSB.enabled = actual === 'opus-bridge';
+      rolledTo = g.rolled ? g.index : -1;         // only this load's own first track counts as a rollover; any other load clears it
       player.play(album.tracks, g.index, g.offset, actual === 'stock', { external: true });
       req.media.contentUrl = player.url;          // our MediaSource: the Cast framework plays it on its media element
       req.media.contentType = 'audio/mp4';
@@ -203,7 +204,7 @@
     function onPlayerEvent(type, data) {
       if (type === 'ended' && data && kind === 'stream') {
         // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
-        if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); rolledTo = data.index + 1; loadStream('stock', data.index + 1, 0); }
+        if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0, false, true); }
         else { log('album finished'); stopped(); }
         return;
       }

@@ -10,7 +10,7 @@ body:
   - type: input
     id: device
     attributes:
-      label: Device model
+      label: What did you cast to? (any description is fine)
       placeholder: e.g. Nest Audio, Chromecast with Google TV (4K), Sony TV with Cast built in
     validations:
       required: true

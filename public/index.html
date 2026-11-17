@@ -348,7 +348,7 @@
       <summary><h3>Tried it on your own Cast device? Report your result</h3></summary>
       <p class="muted">So far this has been tested on only a handful of devices, so every result helps, including ones where it doesn't work. Open a pre-filled GitHub issue that you can review before posting. No GitHub account? Send it straight from this page instead (you see it first, no sign-in), or copy it as text and paste it wherever you found this page. It includes your receiver's firmware and browser version, but never your device's name.</p>
       <div class="rrow">
-        <label class="grow">Device model <input id="rModel" placeholder="e.g. Nest Audio, Chromecast with Google TV, Sony TV with Cast"></label>
+        <label class="grow">What did you cast to? <span class="muted">(optional, any description is fine)</span> <input id="rModel" placeholder="e.g. Nest Mini, old Chromecast, &quot;some Sony TV&quot;, WiiM speaker"></label>
         <label class="chk"><input type="checkbox" id="rGroup"> Played to a speaker group</label>
       </div>
       <div class="tablewrap">
@@ -971,7 +971,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   // logMax: how much log fits (URL-encoded characters), or 0 to leave it out.
   function reportFields(logMax) {
     var model = $('rModel').value.trim();
-    if (!model) { $('rModel').focus(); $('rModel').placeholder = 'Please enter the device model first'; return null; }
+    if (!model) model = 'device not named';   // optional: the receiver's own details still identify it
     function v(name) { var r = document.querySelector('input[name=' + name + ']:checked'); return r ? r.value : 'not tried'; }
     var noFlac = target() === 'cast'
       ? noSampleAccurate.cast || !!(castDevice && (castDevice.sampleAccurate === false || (castDevice.mse && castDevice.mse.flacMp4 === false)))

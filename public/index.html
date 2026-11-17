@@ -755,6 +755,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     setTimeout(function () { $('rModel').focus({ preventScroll: true }); }, 400);
   };
   $('nudgeX').onclick = function () { hideNudge(true); };
+  // After a report, stop nudging for this visit only: the same person may test another device another day.
+  function reported() { nudgeOff = true; hideNudge(false); }
   $('rSeeLog').onclick = function (e) {
     e.preventDefault();
     $('playerLog').open = true;
@@ -998,7 +1000,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   function query(q) { return Object.keys(q).map(function (k) { return k + '=' + encodeURIComponent(q[k]); }).join('&'); }
   $('rSend').onclick = function () {
     var f = reportFields(4500);   // GitHub refuses very long new-issue URLs
-    if (!f) return; hideNudge(true);
+    if (!f) return; reported();
     var q = { template: 'device-report.yml', title: f.title, device: f.device, group: f.group, results: f.results, receiver: f.receiver, notes: f.notes };
     if (f.log) q.log = f.log;
     window.open('https://github.com/' + REPO + '/issues/new?' + query(q), '_blank', 'noopener');
@@ -1010,7 +1012,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   }
   $('rCopy').onclick = function () {
     var f = reportFields(6000);   // keeps it well inside a Reddit comment
-    if (!f) return; hideNudge(true);
+    if (!f) return; reported();
     copyText(reportText(f), $('rMsg'));
   };
   // "Send without an account": shows the whole report, then posts it to the Google Form in the background.
@@ -1034,7 +1036,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       // Google Forms gives no readable answer to another site (no-cors), so a finished request is the best signal we get.
       fetch(FORM.url.replace(/\/viewform.*$/, '/formResponse'), { method: 'POST', mode: 'no-cors', body: body })
         .then(function () {
-          hideNudge(true); pending = null;
+          reported(); pending = null;
           $('sendStatus').textContent = 'Sent. Thank you!'; $('sendGo').hidden = true; $('sendCancel').textContent = 'Close';
         }, function () {
           $('sendGo').disabled = false;

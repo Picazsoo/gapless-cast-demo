@@ -31,10 +31,11 @@
   var API = global.OpusBridgeSB = { enabled: false, onLog: null, supported: function () { return false; } };
   if (!MS || !G) return;
   var SR = 48000, EB = G.EBML, OPUS_MIME = 'audio/webm; codecs="opus"';
-  var KA = 2, KB = 2;               // packets of A / B replaced by the bridge (2+2: half the work of 3+6, same accuracy a few frames on)
+  var KA = 3, KB = 6;               // packets of A / B replaced by the bridge
+  var KA_SHORT = 2, KB_SHORT = 2;   // a short bridge when time is short: ~60% of the work, a little less exact for ~0.1 s
   var WUP = 1, PRE = 2;             // encoder warm-up frames; decoder pre-roll packets before them
   var SNAP = 0.25 * SR;             // tracks placed this close together are joined
-  var BITRATE = 192000, COMPLEXITY = 0;   // 0: fastest; for under 0.1 s of audio at 192 kbps no measurable loss vs 2
+  var BITRATE = 192000, COMPLEXITY = 0;   // 0: ~30% faster than 2, no measurable loss for 0.2 s of audio at 192 kbps
   var HOLD = 8 * SR;                // a seek this close to a track's end waits for the bridge before playing
   API.supported = function () { try { return MS.isTypeSupported(OPUS_MIME); } catch (e) { return false; } };
   API.stats = { joins: 0, ms: 0 };
@@ -71,6 +72,7 @@
   // the rests are dropped: a join made in time matters more than a smooth CPU.
   API.rest = 0.5;
   var stepT = 0, busyTotal = 0, lastWork = 0;
+  var fullWork = 0;                 // work (ms) of the last full bridge, or an estimate from the warm-up
   // owner: the wrapper whose work this is; once it is destroyed its work stops at the next step.
   var CANCELLED = 'cancelled';
   function pace(owner) {
@@ -168,7 +170,10 @@
           return withCodec(async function () {
             var t0 = Date.now(), z = new Int16Array(960 * 2);
             o.h._encoder_ctl(4028, 0); o.h._encoder_ctl(4010, COMPLEXITY);
+            busyTotal = 0;
             for (var i = 0; i < 3; i++) { stepT = Date.now(); var f = encodeFrame(o, z, 0, 960); await pace(self); await decodeAll(o, [f], self); }
+            var cpu = busyTotal + (Date.now() - stepT);
+            if (!fullWork) fullWork = cpu / 3 * 10;     // a full bridge is about ten encode+decode pairs (a cold estimate: on the high side)
             log('libopus ready (warm-up ' + (Date.now() - t0) + ' ms, with rests)');
           }).catch(function (e) { if (e.message !== CANCELLED) throw e; });
         });
@@ -403,6 +408,7 @@
 
     // The join being made is close to the playhead: work without rests.
     tight() {
+      if (this.waiting) { if (!this.rushing) { this.rushing = true; log('playback waiting for the join: working without rests'); } return true; }
       if (this.deadline == null) return false;
       var el = this.element();
       if (!el) return false;
@@ -415,19 +421,26 @@
       busyTotal = 0;
       b.from = null;
       // Where the join will play (the real buffer's timeline is the out position in seconds).
-      this.deadline = a.held.length ? (this.ppos(a, a.held[0].raw) + a.d) / SR : null; this.rushing = false;
+      // Where the bridge will play (the real buffer's timeline is the out position in seconds).
+      var hk = a.held[Math.max(0, a.held.length - KA)];
+      this.deadline = hk ? (this.ppos(a, hk.raw) + a.d) / SR : null; this.rushing = false;
+      // Full bridge (KA+KB) when there is time for it, else the short one: the join itself must make it.
+      // (Held after a seek near the end: playback is waiting for this bridge right now.)
+      var el0 = this.element(), waiting = !!a.holdAll, tLeft = waiting ? 0 : this.deadline != null && el0 ? this.deadline - el0.currentTime : Infinity;
+      this.waiting = waiting;
+      var short = tLeft < 2 * fullWork / 1000 + 1, ka = short ? KA_SHORT : KA, kb = short ? KB_SHORT : KB;
       try {
-        // A: decode pre-roll + warm-up + the KA held packets; keep the trimmed tail.
-        var early = a.held.splice(0, a.held.length - KA), me0 = this;     // anything held back after a seek plays now
+        // A: decode pre-roll + warm-up + the ka held packets; keep the trimmed tail.
+        var early = a.held.splice(0, a.held.length - ka), me0 = this;     // anything held back after a seek (or beyond a short bridge) plays now
         early.forEach(function (k) { me0.emit(a, k, out); });
         a.holdAll = false;
-        var ctx = a.ring.slice(-(KA + WUP + PRE)), pa = await decodeAll(o, ctx.map(function (k) { return k.bytes; }), this);
+        var ctx = a.ring.slice(-(ka + WUP + PRE)), pa = await decodeAll(o, ctx.map(function (k) { return k.bytes; }), this);
         var aStartRaw = ctx[0].raw, heldRaw = a.held[0].raw;
         var aWarm = pa.subarray((heldRaw - WUP * 960 - aStartRaw) * 2, (heldRaw - aStartRaw) * 2);
         var aPart = pa.subarray((heldRaw - aStartRaw) * 2, (a.endRaw - aStartRaw) * 2);
         // B: decode from its start; drop the pre-skip.
-        var pb = await decodeAll(o, b.pend.slice(0, KB + 2).map(function (k) { return k.bytes; }), this);   // the replaced packets + encoder look-ahead
-        var endB = KB * 960 - b.preskip;
+        var pb = await decodeAll(o, b.pend.slice(0, kb + 2).map(function (k) { return k.bytes; }), this);   // the replaced packets + encoder look-ahead
+        var endB = kb * 960 - b.preskip;
         var bPart = pb.subarray(b.preskip * 2, (b.preskip + endB) * 2), bAfter = pb.subarray((b.preskip + endB) * 2);
         var L = aPart.length / 2 + endB, L2 = Math.max(120, Math.round(L / 120) * 120);
         var src = new Int16Array(L * 2); src.set(aPart, 0); src.set(bPart, aPart.length);
@@ -455,16 +468,18 @@
         var at = this.ppos(a, heldRaw) + a.d;
         a.held = [];
         frames.forEach(function (fr) { out.push({ bytes: fr.bytes, out: at, n: fr.n }); at += fr.n; });
-        b.d = at - this.ppos(b, KB * 960);
+        b.d = at - this.ppos(b, kb * 960);
         b.state = 'pass';
-        var rest = b.pend.slice(KB); b.pend = [];
+        var rest = b.pend.slice(kb); b.pend = [];
         var self = this;
         rest.forEach(function (k) { b.held.push(k); while (b.held.length > KA) self.emit(b, b.held.shift(), out); });
         var ms = Date.now() - t0, cpu = busyTotal + (Date.now() - stepT);
-        lastWork = cpu; this.deadline = null;
+        lastWork = cpu; this.deadline = null; this.waiting = false;
+        fullWork = short ? cpu / 0.58 : cpu;          // (a short bridge is ~58% of a full one's work)
         API.stats.joins++; API.stats.ms += ms;
-        log('bridge: ' + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms (' + cpu + ' ms of work, the rest pauses)');
+        log((short ? 'short bridge (' + (waiting ? 'playback waiting' : 'join ' + Math.max(0, tLeft).toFixed(1) + ' s away') + '): ' : 'bridge: ') + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms (' + cpu + ' ms of work, the rest pauses)');
       } catch (e) {
+        this.deadline = null; this.waiting = false;
         if (e.message === CANCELLED || this.dead) return;          // this stream was stopped meanwhile
         log('ERROR bridge failed (' + e.message + '); joining the plain way');
         this.flush(a, out, true);

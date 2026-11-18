@@ -320,7 +320,7 @@
         <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
           <div class="sub">
             <label><input type="radio" name="mode" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
-            <label><input type="radio" name="mode" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.1 s around each join. For devices too slow to decode everything.</span></span></label>
+            <label><input type="radio" name="mode" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
             <label><input type="radio" name="mode" value="auto"><span><b>Automatic (experimental)</b><span class="d">Lets the receiver choose from what the device supports: lossless where it has Web Audio, the Opus bridge where it doesn't. The log says what it picked.</span></span></label>
           </div>
         </div>
@@ -404,7 +404,7 @@
           <line class="join" x1="120" y1="4" x2="120" y2="66"/>
           <text x="120" y="80" text-anchor="middle">no seam</text>
         </svg>
-        <p>Each track is decoded, its lead-in and padding are cut off by sample count, and its first sample is placed right after the previous track's last one. The receiver hears one continuous waveform, exactly as it was recorded. The experimental Opus bridge option does the same trimming, but decodes and re-encodes only the ~0.1 s around each join.</p>
+        <p>Each track is decoded, its lead-in and padding are cut off by sample count, and its first sample is placed right after the previous track's last one. The receiver hears one continuous waveform, exactly as it was recorded. The experimental Opus bridge option does the same trimming, but decodes and re-encodes only the ~0.2 s around each join.</p>
       </div>
     </div>
 
@@ -439,7 +439,7 @@
         <div class="down">↓ &nbsp;the same appends, unchanged</div>
         <div class="box ok">sample-accurate SourceBuffer<small>trim by sample · join exactly</small></div>
         <div class="down">↓ &nbsp;one of two ways</div>
-        <div class="split"><div class="box">Lossless<small>decode every track → FLAC</small></div><div class="box">Opus bridge<small>experimental: re&#8209;encode ~0.1 s per join → Opus</small></div></div>
+        <div class="split"><div class="box">Lossless<small>decode every track → FLAC</small></div><div class="box">Opus bridge<small>experimental: re&#8209;encode ~0.2 s per join → Opus</small></div></div>
         <div class="down">↓ &nbsp;one continuous stream</div>
         <div class="box">one SourceBuffer → audio element</div>
         <div class="down">↓</div>
@@ -485,7 +485,7 @@
           <li>Butt each track against the previous track's last sample.</li>
           <li>Hand the result to MSE as lossless FLAC, a second at a time.</li>
         </ol>
-        <span>Experimental Opus bridge option, for devices too slow to decode everything: keep the stream Opus and decode and re-encode only ~0.1 s around each join.</span>
+        <span>Experimental Opus bridge option, for devices too slow to decode everything: keep the stream Opus and decode and re-encode only ~0.2 s around each join.</span>
       </div>
       <div class="arrow">↓</div>
       <div class="stage"><b>The same media element <span class="tag same">unchanged</span></b><span>so pause, volume, Cast speaker groups and stream transfer keep working</span></div>
@@ -568,7 +568,7 @@
       <p>Not for this approach. The demo uses the same kind of per-track Opus files, unchanged, and only the receiver page's JavaScript changes.</p>
     </details>
     <details class="faq" id="faq-audio-quality"><summary>Does it lower the audio quality?</summary>
-      <p>Not in the lossless way: the Opus audio is decoded once, as it always is, and handed to the speaker losslessly as FLAC, with nothing re-encoded. The experimental Opus bridge option re-encodes only the ~0.1 s around each join, at a high bitrate (192 kbps).</p>
+      <p>Not in the lossless way: the Opus audio is decoded once, as it always is, and handed to the speaker losslessly as FLAC, with nothing re-encoded. The experimental Opus bridge option re-encodes only the ~0.2 s around each join, at a high bitrate (192 kbps).</p>
     </details>
     <details class="faq" id="faq-old-devices"><summary>Isn't it too heavy for old devices?</summary>
       <p>The lossless way runs well on a 2015 Chromecast Audio and keeps only about 5 seconds of decoded audio buffered ahead of the playhead. It is too heavy for a first-generation Google Home Mini, which is what the experimental Opus bridge option is for.</p>

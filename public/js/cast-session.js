@@ -199,6 +199,8 @@
       // What the controller wants afterwards: start, pause, or (unspecified) stay as it is.
       var after = req.resumeState === 'PLAYBACK_START' ? true : req.resumeState === 'PLAYBACK_PAUSE' ? false : undefined;
       if (mode === 'stock') {
+        // A skip still waiting: the seek is into that track (the one controllers already show), so it replaces it.
+        if (pending) { log('seek to ' + t.toFixed(1) + ' s in track ' + (w.index + 1)); restartAt(w.index, t, undefined, after); return null; }
         // Per-track: the item is the track, so seek natively, unless the target was
         // already evicted behind the playhead (the queue only fills forwards): then
         // reload the track from there.

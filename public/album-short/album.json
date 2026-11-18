@@ -1,0 +1,93 @@
+{
+  "title": "Beethoven: Symphony No. 5 (IV. Allegro), short-track stress test",
+  "artist": "Skidmore College Orchestra (via Musopen)",
+  "source": "https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_iv._allegro.ogg",
+  "license": "Public Domain (composition PD-old-100; recording PD-author, released by Musopen)",
+  "tracks": [
+    {
+      "file": "01.webm",
+      "title": "Part 1 (12.0 s)",
+      "duration": 12
+    },
+    {
+      "file": "02.webm",
+      "title": "Part 2 (10.2 s)",
+      "duration": 10.201
+    },
+    {
+      "file": "03.webm",
+      "title": "Part 3 (8.7 s)",
+      "duration": 8.672
+    },
+    {
+      "file": "04.webm",
+      "title": "Part 4 (7.4 s)",
+      "duration": 7.372
+    },
+    {
+      "file": "05.webm",
+      "title": "Part 5 (6.3 s)",
+      "duration": 6.265
+    },
+    {
+      "file": "06.webm",
+      "title": "Part 6 (5.3 s)",
+      "duration": 5.326
+    },
+    {
+      "file": "07.webm",
+      "title": "Part 7 (4.5 s)",
+      "duration": 4.528
+    },
+    {
+      "file": "08.webm",
+      "title": "Part 8 (3.8 s)",
+      "duration": 3.848
+    },
+    {
+      "file": "09.webm",
+      "title": "Part 9 (3.3 s)",
+      "duration": 3.271
+    },
+    {
+      "file": "10.webm",
+      "title": "Part 10 (2.8 s)",
+      "duration": 2.782
+    },
+    {
+      "file": "11.webm",
+      "title": "Part 11 (2.4 s)",
+      "duration": 2.363
+    },
+    {
+      "file": "12.webm",
+      "title": "Part 12 (2.0 s)",
+      "duration": 2.01
+    },
+    {
+      "file": "13.webm",
+      "title": "Part 13 (1.7 s)",
+      "duration": 1.709
+    },
+    {
+      "file": "14.webm",
+      "title": "Part 14 (1.5 s)",
+      "duration": 1.451
+    },
+    {
+      "file": "15.webm",
+      "title": "Part 15 (1.2 s)",
+      "duration": 1.235
+    },
+    {
+      "file": "16.webm",
+      "title": "Part 16 (1.1 s)",
+      "duration": 1.05
+    },
+    {
+      "file": "17.webm",
+      "title": "Part 17 (0.9 s)",
+      "duration": 0.892
+    }
+  ]
+}

@@ -9,8 +9,9 @@
  *
  *   - the last KA packets of track A and the first KB packets of track B are
  *     decoded, A's end padding and B's pre-skip are cut by sample count, and
- *     the joined audio (stretched by well under 1% so that its length is a
- *     whole number of 2.5 ms Opus frames) is encoded again as Opus;
+ *     the joined audio (retimed so that its length is a whole number of
+ *     2.5 ms Opus frames: at most +-1.25 ms, under 0.7% for the full bridge,
+ *     up to ~2% for the short one) is encoded again as Opus;
  *   - those few re-encoded packets ("the bridge") replace the originals, so
  *     the decoder runs straight from A into B with no reset and no gap.
  *
@@ -388,6 +389,7 @@
       t.prev = null;
       if (p && p.endRaw === null && p.raw !== null) p.endRaw = p.raw;      // no end padding signalled
       var joinable = p && p.endRaw !== null && t.raw === 0 && p.held.length >= KA && p.ring.length >= KA + WUP + PRE &&
+        t.preskip + 960 <= KB * 960 &&                                     // (a pre-skip longer than the bridge can't be bridged)
         Math.abs(this.ppos(t, t.preskip) - this.ppos(p, p.endRaw)) < SNAP;
       if (joinable) { t.state = 'wait'; t.from = p; return; }
       if (p) this.flush(p, out, true);
@@ -429,6 +431,9 @@
       var el0 = this.element(), waiting = !!a.holdAll, tLeft = waiting ? 0 : this.deadline != null && el0 ? this.deadline - el0.currentTime : Infinity;
       this.waiting = waiting;
       var short = tLeft < 2 * fullWork / 1000 + 1, ka = short ? KA_SHORT : KA, kb = short ? KB_SHORT : KB;
+      // The incoming packets must reach past B's pre-skip by at least one packet (a long pre-skip
+      // needs more of them); if even the full bridge's packets don't, nothing changes here.
+      if (short) kb = Math.min(KB, Math.max(kb, Math.ceil(b.preskip / 960) + 1));
       try {
         // A: decode pre-roll + warm-up + the ka held packets; keep the trimmed tail.
         var early = a.held.splice(0, a.held.length - ka), me0 = this;     // anything held back after a seek (or beyond a short bridge) plays now

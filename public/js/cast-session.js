@@ -60,7 +60,7 @@
       req.media = new M.MediaInformation();
       req.media.contentId = 'gapless-demo:album';
       req.media.contentType = 'audio/mp4';
-      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused, rolled: !!rolled } };   // rolled: the previous track ended by itself
+      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused, rolled: !!rolled, album: Demo.albumId() } };   // rolled: the previous track ended by itself
       req.autoplay = !paused;
       return pm.load(req);
     }
@@ -79,11 +79,15 @@
       return Promise.resolve(p).catch(function (e) { report('error', 'load failed: ' + (e && (e.message || e.type || e.reason || JSON.stringify(e)))); });
     }
 
-    pm.setMessageInterceptor(M.MessageType.LOAD, function (req) {
+    pm.setMessageInterceptor(M.MessageType.LOAD, function onLoad(req) {
       var g = req.customData && req.customData.gapless;
       if (!g) {
         var err = new M.ErrorData(M.ErrorType.LOAD_FAILED); err.reason = M.ErrorReason.INVALID_PARAMS;
         log('LOAD without demo data rejected'); return err;
+      }
+      if ((g.album || '') !== Demo.albumId() || !album) {     // another album (or not loaded yet): load it first
+        Demo.setAlbum(g.album || ''); album = null;
+        return Demo.loadAlbum().then(function (a) { album = a; return onLoad(req); });
       }
       clearTimeout(pendingTimer); pending = null;
       log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
@@ -221,7 +225,7 @@
         var w = where();
         log('SESSION_STATE requested (stream transfer / group change): ' + (w ? 'track ' + (w.index + 1) + ' at ' + w.position.toFixed(1) + ' s' : 'nothing playing'));
         if (ss && ss.loadRequestData && w && kind === 'stream') {
-          ss.loadRequestData.customData = { gapless: { mode: mode, index: w.index, offset: Math.floor(w.position * 10) / 10 } };
+          ss.loadRequestData.customData = { gapless: { mode: mode, index: w.index, offset: Math.floor(w.position * 10) / 10, album: Demo.albumId() } };
           ss.loadRequestData.currentTime = 0;
         }
         return ss;
@@ -242,7 +246,10 @@
     // Commands from the demo page (same shape as Demo.handle).
     function handle(cmd) {
       if (cmd.mode && !MODES[cmd.mode]) return report('error', 'unknown mode ' + cmd.mode);
-      if (cmd.cmd === 'play') start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0);
+      if (cmd.cmd === 'play') {
+        if ((cmd.album || '') !== Demo.albumId()) { Demo.setAlbum(cmd.album || ''); album = null; log('album: ' + (cmd.album || 'default')); }
+        start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0);
+      }
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();
       else if (cmd.cmd === 'stop') { startGen++; if (kind) { stopped(); pm.stop(); } }

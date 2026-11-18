@@ -1,0 +1,31 @@
+Short-track stress test: 17 tracks that get shorter and shorter (12 s down to 0.9 s, each
+about 15% shorter than the one before), cut from the same recording as ../album/ (see
+../album/SOURCE.txt for source, licence and the full processing steps).
+
+It starts at the same sample as ../album/10.webm (inside the crescendo into the recapitulation)
+and runs 74.97 s on, cut at uneven sample positions. Each track was encoded and remuxed exactly
+like ../album/ (libopus 160 kb/s VBR, 20 ms frames, itag-251 layout). Each file's decoded
+length was checked against its cut (OK = exact).
+
+Meant only to find the track length below which a slow device can no longer prepare each
+join in time: the log names every join and how it was made. Open the page with ?album=short.
+
+Cut positions (samples at 48000 Hz, start inclusive, end exclusive):
+  01.webm  18972331 ..  19548331  ( 576000 samples, 12.000 s)  OK
+  02.webm  19548331 ..  20037968  ( 489637 samples, 10.201 s)  OK
+  03.webm  20037968 ..  20454202  ( 416234 samples, 8.672 s)  OK
+  04.webm  20454202 ..  20808049  ( 353847 samples, 7.372 s)  OK
+  05.webm  20808049 ..  21108760  ( 300711 samples, 6.265 s)  OK
+  06.webm  21108760 ..  21364406  ( 255646 samples, 5.326 s)  OK
+  07.webm  21364406 ..  21581753  ( 217347 samples, 4.528 s)  OK
+  08.webm  21581753 ..  21766438  ( 184685 samples, 3.848 s)  OK
+  09.webm  21766438 ..  21923463  ( 157025 samples, 3.271 s)  OK
+  10.webm  21923463 ..  22056981  ( 133518 samples, 2.782 s)  OK
+  11.webm  22056981 ..  22170412  ( 113431 samples, 2.363 s)  OK
+  12.webm  22170412 ..  22266870  (  96458 samples, 2.010 s)  OK
+  13.webm  22266870 ..  22348906  (  82036 samples, 1.709 s)  OK
+  14.webm  22348906 ..  22418577  (  69671 samples, 1.451 s)  OK
+  15.webm  22418577 ..  22477838  (  59261 samples, 1.235 s)  OK
+  16.webm  22477838 ..  22528257  (  50419 samples, 1.050 s)  OK
+  17.webm  22528257 ..  22571053  (  42796 samples, 0.892 s)  OK
+Total: 3598722 samples = 74.973 s.

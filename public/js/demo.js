@@ -9,12 +9,18 @@
 (function (global) {
   'use strict';
   var album = null, player = null, report = function () {};
+  // Which album: the normal one, or (?album=short on the page) the short-track stress test.
+  // The page passes its choice to the receiver with every play and load.
+  var albumId = /[?&]album=short(&|$)/.test(global.location.search) ? 'short' : '';
+  function setAlbum(id) { id = id === 'short' ? 'short' : ''; if (id !== albumId) { albumId = id; album = null; } }
 
   function loadAlbum() {
     if (album) return Promise.resolve(album);
-    return fetch('album/album.json').then(function (r) { return r.json(); }).then(function (a) {
-      a.tracks.forEach(function (t) { t.url = 'album/' + t.file; });
-      return (album = a);
+    var id = albumId, dir = id ? 'album-' + id + '/' : 'album/';
+    return fetch(dir + 'album.json').then(function (r) { return r.json(); }).then(function (a) {
+      a.tracks.forEach(function (t) { t.url = dir + t.file; });
+      if (id === albumId) album = a;
+      return a;
     });
   }
 
@@ -94,7 +100,7 @@
   SampleAccurateSB.onLog = function (m) { report('log', '[sample-accurate] ' + m); };
   if (global.OpusBridgeSB) OpusBridgeSB.onLog = function (m) { report('log', '[opus-bridge] ' + m); };
   global.Demo = {
-    loadAlbum: loadAlbum, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
+    loadAlbum: loadAlbum, setAlbum: setAlbum, albumId: function () { return albumId; }, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
     onReport: function (fn) { report = fn; }
   };
 })(window);

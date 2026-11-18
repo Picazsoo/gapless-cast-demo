@@ -904,6 +904,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   };
 
   function send(cmd) {
+    if (cmd.cmd === 'play') cmd.album = Demo.albumId();   // the receiver plays the same album as this page
     if (pick('target') === 'cast') {
       var s = session();
       if (!s) { log('not connected to a Cast device'); return; }
@@ -1007,7 +1008,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       : noSampleAccurate.local || !SampleAccurateSB.supported();
     var results = 'Per-track, like YouTube Music: ' + v('v_stock') + '\nGapless queue: ' + v('v_plain') + '\nSample-accurate, lossless: ' +
       (noFlac ? 'not available on this device (it lacks Web Audio or FLAC in MSE, so that mode ran as the plain gapless queue)' : v('v_sa')) +
-      '\nSample-accurate, Opus bridge (experimental): ' + v('v_ob');
+      '\nSample-accurate, Opus bridge (experimental): ' + v('v_ob') +
+      (Demo.albumId() ? '\n(album: ' + Demo.albumId() + '-track stress test)' : '');
     var f = { title: 'Device report: ' + model + ($('rGroup').checked ? ' (speaker group)' : ''),
               device: model, group: $('rGroup').checked ? 'yes' : 'no', results: results, receiver: receiverText(), notes: $('rNotes').value.trim(), log: '' };
     if ($('rLog').checked && logMax) f.log = logText(logMax);

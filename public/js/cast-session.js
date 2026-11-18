@@ -26,8 +26,10 @@
 
   function CastSession(context, el, report) {
     // album: the manifest of what plays now (album.id names it); it changes only when a LOAD starts the new stream.
-    // loadGen: bumped by every command and LOAD, so a manifest that arrives late knows it is no longer wanted.
-    var pm = context.getPlayerManager(), album = null, loadGen = 0;
+    // gen: bumped by everything that takes over playback (a page command, a LOAD from anywhere except our own
+    // auto-advance, a Cast STOP, seek or skip), so work still waiting for a manifest knows it is no longer wanted.
+    var pm = context.getPlayerManager(), album = null, gen = 0;
+    function supersede() { return ++gen; }
     var player = new QueuePlayer(el, function (type, data) {
       // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
       if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }   // (rolledTo: set by the LOAD that auto-advanced)
@@ -36,11 +38,11 @@
     });
     var rolledTo = -1;                            // per-track: the track loaded because the previous one ended
     // mode: what is playing now; requested: picked while paused or stopped, used by the next play.
-    var kind = null, mode = 'sample-accurate', actual = mode, requested = null, pending = null, pendingTimer = null, startGen = 0;
+    var kind = null, mode = 'sample-accurate', actual = mode, requested = null, pending = null, pendingTimer = null;
     function log(m) { report('log', m); }
     function attempt(what, f) { try { f(); } catch (e) { log('skipped ' + what + ': ' + (e && e.message || e)); } }
     function abs(u) { return new URL(u, location.href).href; }
-    Demo.loadAlbum('').then(function (a) { if (!album && !loadGen) album = a; });   // (only if no LOAD came first)
+    Demo.loadAlbum('').then(function (a) { if (!album && !gen) album = a; });   // (only if no LOAD came first)
 
     function metadata(i) {
       var t = album.tracks[i], md = new M.MusicTrackMediaMetadata();
@@ -70,10 +72,10 @@
     // The album's manifest is fetched first; only then does anything change (mode, album, stream),
     // and only if no Stop or newer command came in meanwhile.
     function start(m, index, offset, albumId) {
-      var gen = ++startGen; ++loadGen; albumId = albumId || '';
+      var my = supersede(); albumId = albumId || '';
       return Demo.loadAlbum(albumId).then(function () {
-        if (gen === startGen) return begin(m, index, offset, albumId);
-      }, function (e) { if (gen === startGen) report('error', 'could not load the album: ' + (e && e.message || e)); });
+        if (my === gen) return begin(m, index, offset, albumId);
+      }, function (e) { if (my === gen) report('error', 'could not load the album: ' + (e && e.message || e)); });
     }
     function begin(m, index, offset, albumId) {
       mode = m; requested = null; index = index || 0; offset = offset || 0;
@@ -98,10 +100,11 @@
       // Another album (or none yet): fetch its manifest first. What plays now keeps its own
       // manifest until this LOAD actually replaces the stream; a newer LOAD meanwhile wins.
       // (Commands fetch the manifest before they load; a LOAD from elsewhere, e.g. a stream transfer, may still need it.)
-      var want = g.album || '', my = ++loadGen, next = loaded || (album && album.id === want ? album : Demo.cachedAlbum(want));
+      // (our own per-track auto-advance doesn't take over: a Play waiting for its manifest still wins)
+      var want = g.album || '', my = g.rolled ? gen : supersede(), next = loaded || (album && album.id === want ? album : Demo.cachedAlbum(want));
       if (!next) {
         return Demo.loadAlbum(want).then(function (a) {
-          if (my !== loadGen) { var c = new M.ErrorData(M.ErrorType.LOAD_CANCELLED || M.ErrorType.LOAD_FAILED); log('LOAD superseded by a newer command'); return c; }
+          if (my !== gen) { var c = new M.ErrorData(M.ErrorType.LOAD_CANCELLED || M.ErrorType.LOAD_FAILED); log('LOAD superseded by a newer command'); return c; }
           return onLoad(req, a);
         }, function (e) {
           report('error', 'could not load the album: ' + (e && e.message || e));
@@ -186,6 +189,7 @@
     }
 
     pm.setMessageInterceptor(M.MessageType.SEEK, function (req) {
+      supersede();
       if (kind !== 'stream') return req;
       var w = where(), t = req.currentTime;
       if (req.relativeTime != null) t = w.position + req.relativeTime;
@@ -209,7 +213,7 @@
     });
     attempt('next/previous buttons', function () {
       pm.setMessageInterceptor(M.MessageType.QUEUE_UPDATE, function (req) {
-        if (kind === 'stream' && req && req.jump) { skip(req.jump); return null; }
+        if (kind === 'stream' && req && req.jump) { supersede(); skip(req.jump); return null; }
         return req;
       });
       if (M.Command.QUEUE_NEXT && M.Command.QUEUE_PREV) pm.addSupportedMediaCommands(M.Command.QUEUE_NEXT | M.Command.QUEUE_PREV, true);
@@ -259,7 +263,7 @@
       if (kind) report('state', { state: 'stopped' });
       kind = null;
     }
-    pm.setMessageInterceptor(M.MessageType.STOP, function (req) { stopped(); return req; });
+    pm.setMessageInterceptor(M.MessageType.STOP, function (req) { supersede(); stopped(); return req; });
     pm.addEventListener(E.PAUSE, function () { if (kind) report('state', { state: 'paused' }); });
     pm.addEventListener(E.PLAYING, function () { if (kind) report('state', { state: 'playing', mode: actual, auto: mode === 'auto' }); });
     pm.addEventListener(E.ERROR, function (e) { report('error', 'Cast player: ' + (e.detailedErrorCode || '') + ' ' + (e.reason || '') + ' ' + (e.error && e.error.message || '')); });
@@ -272,7 +276,7 @@
       }
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();
-      else if (cmd.cmd === 'stop') { startGen++; loadGen++; if (kind) { stopped(); pm.stop(); } }
+      else if (cmd.cmd === 'stop') { supersede(); if (kind) { stopped(); pm.stop(); } }
       else if (cmd.cmd === 'mode') {
         var w = kind && where();
         if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) { if (cmd.mode !== mode) start(cmd.mode, w.index, w.position, album ? album.id : ''); }

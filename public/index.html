@@ -710,7 +710,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   // The Cast device may still play the other album (a page opened with or without ?album=short).
   function otherAlbum(s) { return s.album != null && s.album !== Demo.albumId(); }
   // The album a report is about: what the Cast device last said it plays, else this page's.
-  function reportAlbum() { var a = target() === 'cast' && players.cast.album; return a != null && a !== false ? a : Demo.albumId(); }
+  // (kept across Stop and the album's end, so a report written afterwards still names it)
+  var lastCastAlbum = null;
+  function reportAlbum() { return target() === 'cast' && lastCastAlbum != null ? lastCastAlbum : Demo.albumId(); }
   function onReport(type, data, from) {
     from = from || 'local';
     if (type === 'device') { castDevice = data; $('rDevice').textContent = 'Receiver details found: ' + shortUa(data.userAgent); return; }
@@ -723,11 +725,11 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       // (An older receiver doesn't say: then guess from the last position report, the next track reached from the last seconds of this one.)
       var natural = 'natural' in data ? data.natural : s.index >= 0 && data.index === s.index + 1 && s.duration && s.position > s.duration - 3;
       if (from === 'cast' && natural && !s.paused) heardJoin();
-      if ('album' in data) s.album = data.album;
+      if ('album' in data) { s.album = data.album; if (from === 'cast') lastCastAlbum = data.album; }
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
-      if ('album' in data) s.album = data.album;
+      if ('album' in data) { s.album = data.album; if (from === 'cast') lastCastAlbum = data.album; }
       s.index = data.index; s.position = data.position; s.duration = data.duration;
       if (!s.title && album && !otherAlbum(s) && album.tracks[data.index]) s.title = album.tracks[data.index].title;
     }
@@ -831,7 +833,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
           if (!heard && session() === s) log('no answer from the receiver after 15 s. Its page may have failed to load on this device. Please include your Cast firmware version (Google Home app, device settings, Device information) when you report this.');
         }, 15000);
         noSampleAccurate.cast = false; players.cast = blank();   // forget the previous device's position
-        heardModes = {}; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
+        heardModes = {}; lastCastAlbum = null; playingMode.cast = ''; markHeard(); $('nudge').hidden = true;   // a new device starts with a clean slate
         document.querySelector('input[name=target][value=cast]').checked = true; render();
         var nm = s.getCastDevice().friendlyName;
         if (nm && castNames.indexOf(nm) < 0) castNames.push(nm);

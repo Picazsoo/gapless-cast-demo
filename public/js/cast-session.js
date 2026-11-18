@@ -26,7 +26,8 @@
 
   function CastSession(context, el, report) {
     // album: the manifest of what plays now (album.id names it); it changes only when a LOAD starts the new stream.
-    var pm = context.getPlayerManager(), album = null, loadGen = 0, switching = 0;   // switching: a LOAD waiting for another album's manifest
+    // loadGen: bumped by every command and LOAD, so a manifest that arrives late knows it is no longer wanted.
+    var pm = context.getPlayerManager(), album = null, loadGen = 0;
     var player = new QueuePlayer(el, function (type, data) {
       // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
       if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }   // (rolledTo: set by the LOAD that auto-advanced)
@@ -66,9 +67,16 @@
       req.autoplay = !paused;
       return pm.load(req);
     }
+    // The album's manifest is fetched first; only then does anything change (mode, album, stream),
+    // and only if no Stop or newer command came in meanwhile.
     function start(m, index, offset, albumId) {
-      ++startGen;
-      mode = m; requested = null; index = index || 0; offset = offset || 0; albumId = albumId || '';
+      var gen = ++startGen; ++loadGen; albumId = albumId || '';
+      return Demo.loadAlbum(albumId).then(function () {
+        if (gen === startGen) return begin(m, index, offset, albumId);
+      }, function (e) { if (gen === startGen) report('error', 'could not load the album: ' + (e && e.message || e)); });
+    }
+    function begin(m, index, offset, albumId) {
+      mode = m; requested = null; index = index || 0; offset = offset || 0;
       var want = m === 'auto' ? Demo.autoMode().mode : m;   // compare what would actually play, not the literal request
       // Continue in place only within the same album: another album is a new stream (the LOAD swaps the manifest).
       if (want && want !== 'stock' && kind === 'stream' && album && album.id === albumId && player.ms && live() && actual === want && SampleAccurateSB.enabled === (want === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (want === 'opus-bridge')) {
@@ -89,13 +97,15 @@
       }
       // Another album (or none yet): fetch its manifest first. What plays now keeps its own
       // manifest until this LOAD actually replaces the stream; a newer LOAD meanwhile wins.
-      var want = g.album || '', my = ++loadGen, next = loaded || (album && album.id === want ? album : null);
+      // (Commands fetch the manifest before they load; a LOAD from elsewhere, e.g. a stream transfer, may still need it.)
+      var want = g.album || '', my = ++loadGen, next = loaded || (album && album.id === want ? album : Demo.cachedAlbum(want));
       if (!next) {
-        switching = my;
         return Demo.loadAlbum(want).then(function (a) {
-          if (switching === my) switching = 0;
-          if (my !== loadGen) { var c = new M.ErrorData(M.ErrorType.LOAD_CANCELLED || M.ErrorType.LOAD_FAILED); log('LOAD superseded by a newer one'); return c; }
+          if (my !== loadGen) { var c = new M.ErrorData(M.ErrorType.LOAD_CANCELLED || M.ErrorType.LOAD_FAILED); log('LOAD superseded by a newer command'); return c; }
           return onLoad(req, a);
+        }, function (e) {
+          report('error', 'could not load the album: ' + (e && e.message || e));
+          var f = new M.ErrorData(M.ErrorType.LOAD_FAILED); f.reason = M.ErrorReason.INVALID_PARAMS; return f;
         });
       }
       clearTimeout(pendingTimer); pending = null;
@@ -219,7 +229,6 @@
     function onPlayerEvent(type, data) {
       if (type === 'ended' && data && kind === 'stream') {
         // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
-        if (switching) { log('track ended while another album loads: not loading the next track'); return; }
         if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0, false, true); }
         else { log('album finished'); stopped(); }
         return;
@@ -263,10 +272,10 @@
       }
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();
-      else if (cmd.cmd === 'stop') { startGen++; if (kind) { stopped(); pm.stop(); } }
+      else if (cmd.cmd === 'stop') { startGen++; loadGen++; if (kind) { stopped(); pm.stop(); } }
       else if (cmd.cmd === 'mode') {
         var w = kind && where();
-        if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) { if (cmd.mode !== mode) start(cmd.mode, w.index, w.position); }
+        if (w && pm.getPlayerState() !== M.PlayerState.PAUSED) { if (cmd.mode !== mode) start(cmd.mode, w.index, w.position, album ? album.id : ''); }
         else { requested = cmd.mode === mode ? null : cmd.mode; log('mode set to ' + MODES[cmd.mode] + ' (applies on the next play)'); }
       }
     }

@@ -13,7 +13,7 @@
   // The page's album is fixed for the page; it sends it with every play, and the
   // receiver loads whichever album a play or load names (loadAlbum(id)).
   var albumId = /[?&]album=short(&|$)/.test(global.location.search) ? 'short' : '';
-  var manifests = {};
+  var manifests = {}, ready = {};
   function loadAlbum(id) {
     id = id === undefined ? albumId : id === 'short' ? 'short' : '';
     if (!manifests[id]) {
@@ -21,7 +21,7 @@
       manifests[id] = fetch(dir + 'album.json').then(function (r) { return r.json(); }).then(function (a) {
         a.id = id;
         a.tracks.forEach(function (t) { t.url = dir + t.file; });
-        return a;
+        return (ready[id] = a);
       });
       manifests[id].catch(function () { delete manifests[id]; });
     }
@@ -104,7 +104,7 @@
   SampleAccurateSB.onLog = function (m) { report('log', '[sample-accurate] ' + m); };
   if (global.OpusBridgeSB) OpusBridgeSB.onLog = function (m) { report('log', '[opus-bridge] ' + m); };
   global.Demo = {
-    loadAlbum: loadAlbum, albumId: function () { return albumId; }, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
+    loadAlbum: loadAlbum, cachedAlbum: function (id) { return ready[id || ''] || null; }, albumId: function () { return albumId; }, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
     onReport: function (fn) { report = fn; }
   };
 })(window);

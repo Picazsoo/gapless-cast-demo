@@ -10,18 +10,22 @@
   'use strict';
   var album = null, player = null, report = function () {};
   // Which album: the normal one, or (?album=short on the page) the short-track stress test.
-  // The page passes its choice to the receiver with every play and load.
+  // The page's album is fixed for the page; it sends it with every play, and the
+  // receiver loads whichever album a play or load names (loadAlbum(id)).
   var albumId = /[?&]album=short(&|$)/.test(global.location.search) ? 'short' : '';
-  function setAlbum(id) { id = id === 'short' ? 'short' : ''; if (id !== albumId) { albumId = id; album = null; } }
-
-  function loadAlbum() {
-    if (album) return Promise.resolve(album);
-    var id = albumId, dir = id ? 'album-' + id + '/' : 'album/';
-    return fetch(dir + 'album.json').then(function (r) { return r.json(); }).then(function (a) {
-      a.tracks.forEach(function (t) { t.url = dir + t.file; });
-      if (id === albumId) album = a;
-      return a;
-    });
+  var manifests = {};
+  function loadAlbum(id) {
+    id = id === undefined ? albumId : id === 'short' ? 'short' : '';
+    if (!manifests[id]) {
+      var dir = id ? 'album-' + id + '/' : 'album/';
+      manifests[id] = fetch(dir + 'album.json').then(function (r) { return r.json(); }).then(function (a) {
+        a.id = id;
+        a.tracks.forEach(function (t) { t.url = dir + t.file; });
+        return a;
+      });
+      manifests[id].catch(function () { delete manifests[id]; });
+    }
+    return manifests[id].then(function (a) { if (id === albumId) album = a; return a; });
   }
 
   var MODES = {
@@ -100,7 +104,7 @@
   SampleAccurateSB.onLog = function (m) { report('log', '[sample-accurate] ' + m); };
   if (global.OpusBridgeSB) OpusBridgeSB.onLog = function (m) { report('log', '[opus-bridge] ' + m); };
   global.Demo = {
-    loadAlbum: loadAlbum, setAlbum: setAlbum, albumId: function () { return albumId; }, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
+    loadAlbum: loadAlbum, albumId: function () { return albumId; }, handle: handle, joinCommand: joinCommand, autoMode: autoMode, MODES: MODES,
     onReport: function (fn) { report = fn; }
   };
 })(window);

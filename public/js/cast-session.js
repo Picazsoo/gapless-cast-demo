@@ -25,10 +25,12 @@
                 'auto': 'automatic (picks a gapless mode from what this device supports)' };
 
   function CastSession(context, el, report) {
-    var pm = context.getPlayerManager(), album = null;
+    // album: the manifest of what plays now (album.id names it); it changes only when a LOAD starts the new stream.
+    var pm = context.getPlayerManager(), album = null, loadGen = 0, switching = 0;   // switching: a LOAD waiting for another album's manifest
     var player = new QueuePlayer(el, function (type, data) {
       // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
       if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }   // (rolledTo: set by the LOAD that auto-advanced)
+      if ((type === 'track' || type === 'time') && album) data.album = album.id;   // so a page on another album knows
       onPlayerEvent(type, data); report(type, data);
     });
     var rolledTo = -1;                            // per-track: the track loaded because the previous one ended
@@ -37,7 +39,7 @@
     function log(m) { report('log', m); }
     function attempt(what, f) { try { f(); } catch (e) { log('skipped ' + what + ': ' + (e && e.message || e)); } }
     function abs(u) { return new URL(u, location.href).href; }
-    Demo.loadAlbum().then(function (a) { album = a; });
+    Demo.loadAlbum('').then(function (a) { if (!album && !loadGen) album = a; });   // (only if no LOAD came first)
 
     function metadata(i) {
       var t = album.tracks[i], md = new M.MusicTrackMediaMetadata();
@@ -55,39 +57,46 @@
     function live() { return !!pm.getMediaInformation() && pm.getPlayerState() !== M.PlayerState.IDLE; }
 
     // ---------------------------------------------------------- loading
-    function loadStream(m, index, offset, paused, rolled) {
+    function loadStream(m, index, offset, paused, rolled, albumId) {
       var req = new M.LoadRequestData();
       req.media = new M.MediaInformation();
       req.media.contentId = 'gapless-demo:album';
       req.media.contentType = 'audio/mp4';
-      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused, rolled: !!rolled, album: Demo.albumId() } };   // rolled: the previous track ended by itself
+      req.customData = { gapless: { mode: m, index: index, offset: offset || 0, paused: !!paused, rolled: !!rolled, album: albumId === undefined ? (album ? album.id : '') : albumId } };   // rolled: the previous track ended by itself
       req.autoplay = !paused;
       return pm.load(req);
     }
-    function start(m, index, offset) {
-      var gen = ++startGen;                       // a Stop (or a newer Play) while the album loads cancels this one
-      if (!album) return Demo.loadAlbum().then(function (a) { album = a; if (gen === startGen) return start(m, index, offset); });
-      mode = m; requested = null; index = index || 0; offset = offset || 0;
+    function start(m, index, offset, albumId) {
+      ++startGen;
+      mode = m; requested = null; index = index || 0; offset = offset || 0; albumId = albumId || '';
       var want = m === 'auto' ? Demo.autoMode().mode : m;   // compare what would actually play, not the literal request
-      if (want && want !== 'stock' && kind === 'stream' && player.ms && live() && actual === want && SampleAccurateSB.enabled === (want === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (want === 'opus-bridge')) {
+      // Continue in place only within the same album: another album is a new stream (the LOAD swaps the manifest).
+      if (want && want !== 'stock' && kind === 'stream' && album && album.id === albumId && player.ms && live() && actual === want && SampleAccurateSB.enabled === (want === 'sample-accurate') && !!(global.OpusBridgeSB && OpusBridgeSB.enabled) === (want === 'opus-bridge')) {
         if (m === 'auto') log('automatic mode chose ' + MODES[want] + ': ' + Demo.autoMode().why + ' (already playing that way, continuing in place)');
         restartAt(index, offset, 0, true);        // same kind of stream: continue it in place (and play, if paused)
         return Promise.resolve();
       }
       log('mode: ' + MODES[m] + ', from track ' + (index + 1) + (offset ? ' at ' + offset.toFixed(1) + ' s' : ''));
-      var p = loadStream(m, index, offset);
+      var p = loadStream(m, index, offset, false, false, albumId);
       return Promise.resolve(p).catch(function (e) { report('error', 'load failed: ' + (e && (e.message || e.type || e.reason || JSON.stringify(e)))); });
     }
 
-    pm.setMessageInterceptor(M.MessageType.LOAD, function onLoad(req) {
+    pm.setMessageInterceptor(M.MessageType.LOAD, function onLoad(req, loaded) {
       var g = req.customData && req.customData.gapless;
       if (!g) {
         var err = new M.ErrorData(M.ErrorType.LOAD_FAILED); err.reason = M.ErrorReason.INVALID_PARAMS;
         log('LOAD without demo data rejected'); return err;
       }
-      if ((g.album || '') !== Demo.albumId() || !album) {     // another album (or not loaded yet): load it first
-        Demo.setAlbum(g.album || ''); album = null;
-        return Demo.loadAlbum().then(function (a) { album = a; return onLoad(req); });
+      // Another album (or none yet): fetch its manifest first. What plays now keeps its own
+      // manifest until this LOAD actually replaces the stream; a newer LOAD meanwhile wins.
+      var want = g.album || '', my = ++loadGen, next = loaded || (album && album.id === want ? album : null);
+      if (!next) {
+        switching = my;
+        return Demo.loadAlbum(want).then(function (a) {
+          if (switching === my) switching = 0;
+          if (my !== loadGen) { var c = new M.ErrorData(M.ErrorType.LOAD_CANCELLED || M.ErrorType.LOAD_FAILED); log('LOAD superseded by a newer one'); return c; }
+          return onLoad(req, a);
+        });
       }
       clearTimeout(pendingTimer); pending = null;
       log('LOAD: ' + g.mode + ', track ' + (g.index + 1) + ' at ' + (+g.offset || 0).toFixed(1) + ' s' + (req.type ? ' (' + req.type + ')' : ''));
@@ -109,6 +118,7 @@
       kind = 'stream';
       SampleAccurateSB.enabled = actual === 'sample-accurate';
       if (global.OpusBridgeSB) OpusBridgeSB.enabled = actual === 'opus-bridge';
+      album = next;                               // from here on the new stream and its manifest go together
       rolledTo = g.rolled ? g.index : -1;         // only this load's own first track counts as a rollover; any other load clears it
       player.play(album.tracks, g.index, g.offset, actual === 'stock', { external: true });
       req.media.contentUrl = player.url;          // our MediaSource: the Cast framework plays it on its media element
@@ -132,7 +142,8 @@
     // false = pause afterwards (a seek asking to pause), undefined = keep the current state.
     function restartAt(index, offset, delay, play) {
       index = Math.max(0, Math.min(album.tracks.length - 1, index));
-      offset = Math.max(0, Math.min(offset, album.tracks[index].duration - 1));
+      var dur = album.tracks[index].duration;
+      offset = Math.max(0, Math.min(offset, dur - Math.min(1, dur / 4)));   // not past the end (short tracks: a quarter of their length)
       pending = { index: index, offset: offset }; rolledTo = -1;
       clearTimeout(pendingTimer);
       pendingTimer = setTimeout(function () {
@@ -208,6 +219,7 @@
     function onPlayerEvent(type, data) {
       if (type === 'ended' && data && kind === 'stream') {
         // Per-track: the track's own media item has finished; load the next one (this is where the gap comes from).
+        if (switching) { log('track ended while another album loads: not loading the next track'); return; }
         if (data.perTrack && data.index + 1 < album.tracks.length) { log('track ended: loading the next track as a new media item (stock behaviour)'); loadStream('stock', data.index + 1, 0, false, true); }
         else { log('album finished'); stopped(); }
         return;
@@ -225,7 +237,7 @@
         var w = where();
         log('SESSION_STATE requested (stream transfer / group change): ' + (w ? 'track ' + (w.index + 1) + ' at ' + w.position.toFixed(1) + ' s' : 'nothing playing'));
         if (ss && ss.loadRequestData && w && kind === 'stream') {
-          ss.loadRequestData.customData = { gapless: { mode: mode, index: w.index, offset: Math.floor(w.position * 10) / 10, album: Demo.albumId() } };
+          ss.loadRequestData.customData = { gapless: { mode: mode, index: w.index, offset: Math.floor(w.position * 10) / 10, album: album ? album.id : '' } };
           ss.loadRequestData.currentTime = 0;
         }
         return ss;
@@ -247,8 +259,7 @@
     function handle(cmd) {
       if (cmd.mode && !MODES[cmd.mode]) return report('error', 'unknown mode ' + cmd.mode);
       if (cmd.cmd === 'play') {
-        if ((cmd.album || '') !== Demo.albumId()) { Demo.setAlbum(cmd.album || ''); album = null; log('album: ' + (cmd.album || 'default')); }
-        start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0);
+        start(cmd.mode || requested || mode, cmd.index || 0, cmd.offset || 0, cmd.album || '');
       }
       else if (cmd.cmd === 'pause') pm.pause();
       else if (cmd.cmd === 'resume') pm.play();

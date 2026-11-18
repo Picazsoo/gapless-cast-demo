@@ -699,7 +699,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     nowIndex = s.index; paused = s.paused;
     document.querySelector('input[name=mode][value="' + (noSampleAccurate[target()] && chosen === 'sample-accurate' ? 'plain' : chosen) + '"]').checked = true;
     $('pause').textContent = s.paused ? 'Resume' : 'Pause';
-    [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index ? 'now' : ''; });
+    [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index && !otherAlbum(s) ? 'now' : ''; });
     $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
     $('nowTitle').className = s.index < 0 ? 'muted' : '';
     $('progress').style.width = s.duration ? Math.min(100, 100 * s.position / s.duration) + '%' : '0';
@@ -707,6 +707,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     $('seek').setAttribute('aria-valuemax', Math.round(s.duration)); $('seek').setAttribute('aria-valuenow', Math.round(s.position));
     $('seek').setAttribute('aria-valuetext', s.duration ? fmt(s.position) + ' of ' + fmt(s.duration) : 'nothing playing');
   }
+  // The Cast device may still play the other album (a page opened with or without ?album=short).
+  function otherAlbum(s) { return s.album != null && s.album !== Demo.albumId(); }
   function onReport(type, data, from) {
     from = from || 'local';
     if (type === 'device') { castDevice = data; $('rDevice').textContent = 'Receiver details found: ' + shortUa(data.userAgent); return; }
@@ -719,11 +721,13 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       // (An older receiver doesn't say: then guess from the last position report, the next track reached from the last seconds of this one.)
       var natural = 'natural' in data ? data.natural : s.index >= 0 && data.index === s.index + 1 && s.duration && s.position > s.duration - 3;
       if (from === 'cast' && natural && !s.paused) heardJoin();
+      if ('album' in data) s.album = data.album;
       s.index = data.index; s.title = data.title; log('▶ ' + (data.index + 1) + '. ' + data.title);
     }
     if (type === 'time') {
+      if ('album' in data) s.album = data.album;
       s.index = data.index; s.position = data.position; s.duration = data.duration;
-      if (!s.title && album) s.title = album.tracks[data.index].title;
+      if (!s.title && album && !otherAlbum(s) && album.tracks[data.index]) s.title = album.tracks[data.index].title;
     }
     if (type === 'ended' && !(data && data.perTrack && album && data.index + 1 < album.tracks.length)) log('album finished');
     // Paused or resumed elsewhere (Google Home, the TV remote): keep the button in step.
@@ -925,8 +929,11 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   // Seek within the current track: restart there in the selected mode.
   function seekTo(frac) {
     if (nowIndex < 0 || !album) return;
+    if (otherAlbum(players[target()])) { log('the Cast device is playing the other album: press Play to start this one there'); return; }
     frac = Math.max(0, Math.min(1, frac));
-    var t = album.tracks[nowIndex], offset = Math.min(frac * t.duration, t.duration - 0.5);
+    var t = album.tracks[nowIndex];
+    if (!t) return;
+    var offset = Math.min(frac * t.duration, t.duration - Math.min(0.5, t.duration / 4));   // not past the end (short tracks: a quarter of their length)
     $('progress').style.width = (100 * frac) + '%';
     resetPause();
     send({ cmd: 'play', mode: pick('mode'), index: nowIndex, offset: offset });

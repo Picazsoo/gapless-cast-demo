@@ -10,7 +10,7 @@
  *   - the last KA packets of track A and the first KB packets of track B are
  *     decoded, A's end padding and B's pre-skip are cut by sample count, and
  *     the joined audio (retimed so that its length is a whole number of
- *     2.5 ms Opus frames: at most +-1.25 ms, under 0.7% for the full bridge,
+ *     2.5 ms Opus frames: at most +-1.25 ms, about 0.75% at most for the full bridge,
  *     up to ~2% for the short one) is encoded again as Opus;
  *   - those few re-encoded packets ("the bridge") replace the originals, so
  *     the decoder runs straight from A into B with no reset and no gap.

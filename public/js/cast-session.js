@@ -29,7 +29,8 @@
     // gen: bumped by everything that takes over playback (a page command, a LOAD from anywhere except our own
     // auto-advance, a Cast STOP, seek or skip), so work still waiting for a manifest knows it is no longer wanted.
     var pm = context.getPlayerManager(), album = null, gen = 0;
-    function supersede() { return ++gen; }
+    // (a seek or skip still waiting to restart belongs to the old owner too: it is dropped)
+    function supersede() { clearTimeout(pendingTimer); pending = null; return ++gen; }
     var player = new QueuePlayer(el, function (type, data) {
       // Per-track: the next track is a new load, so the player can't tell a natural rollover; we can.
       if (type === 'track') { data.natural = !!data.natural || (data.index === rolledTo && !pending); rolledTo = -1; }   // (rolledTo: set by the LOAD that auto-advanced)

@@ -15,7 +15,7 @@
  *     the decoder runs straight from A into B with no reset and no gap.
  *
  * After the bridge B's original packets follow; the decoder state mismatch
- * fades within a frame or two. Per join that is ~0.2 s of decoding and
+ * fades within a frame or two. Per join that is ~0.1 s of decoding and
  * encoding with libopus in JavaScript (asm.js, vendor/opusscript), so it also
  * suits devices without Web Audio or WebAssembly, where decoding everything
  * is too slow.
@@ -31,10 +31,10 @@
   var API = global.OpusBridgeSB = { enabled: false, onLog: null, supported: function () { return false; } };
   if (!MS || !G) return;
   var SR = 48000, EB = G.EBML, OPUS_MIME = 'audio/webm; codecs="opus"';
-  var KA = 3, KB = 6;               // packets of A / B replaced by the bridge
+  var KA = 2, KB = 2;               // packets of A / B replaced by the bridge (2+2: half the work of 3+6, same accuracy a few frames on)
   var WUP = 1, PRE = 2;             // encoder warm-up frames; decoder pre-roll packets before them
   var SNAP = 0.25 * SR;             // tracks placed this close together are joined
-  var BITRATE = 192000, COMPLEXITY = 2;   // 2: about 1.6x faster than 5, same quality for 0.2 s of audio
+  var BITRATE = 192000, COMPLEXITY = 0;   // 0: fastest; for under 0.1 s of audio at 192 kbps no measurable loss vs 2
   var HOLD = 8 * SR;                // a seek this close to a track's end waits for the bridge before playing
   API.supported = function () { try { return MS.isTypeSupported(OPUS_MIME); } catch (e) { return false; } };
   API.stats = { joins: 0, ms: 0 };
@@ -67,8 +67,10 @@
   // The work is done in small steps with a rest after each (API.rest x the step's own
   // time), so a slow device's CPU is never hogged: the audio pipeline and the Cast
   // framework keep running while a bridge is being made.
+  // When the join is close (less than about three times the last bridge's work away),
+  // the rests are dropped: a join made in time matters more than a smooth CPU.
   API.rest = 0.5;
-  var stepT = 0, busyTotal = 0;
+  var stepT = 0, busyTotal = 0, lastWork = 0;
   // owner: the wrapper whose work this is; once it is destroyed its work stops at the next step.
   var CANCELLED = 'cancelled';
   function pace(owner) {
@@ -76,7 +78,8 @@
     var busy = Date.now() - stepT;
     if (busy < 10) return Promise.resolve();     // fast device: keep going, a pause would cost more than the step
     busyTotal += busy;
-    return new Promise(function (r, j) { setTimeout(function () { stepT = Date.now(); if (owner && owner.dead) j(new Error(CANCELLED)); else r(); }, Math.max(1, Math.round(busy * API.rest))); });
+    var rest = owner && owner.tight && owner.tight() ? 0 : API.rest;
+    return new Promise(function (r, j) { setTimeout(function () { stepT = Date.now(); if (owner && owner.dead) j(new Error(CANCELLED)); else r(); }, Math.max(1, Math.round(busy * rest))); });
   }
   // One libopus handler for every wrapper: its encoder/decoder state must not be
   // shared by two jobs at once (a stopped stream's last bridge and the next one's start).
@@ -398,10 +401,21 @@
       t.held = [];
     }
 
+    // The join being made is close to the playhead: work without rests.
+    tight() {
+      if (this.deadline == null) return false;
+      var el = this.element();
+      if (!el) return false;
+      var left = this.deadline - el.currentTime, need = Math.max(4, 3 * lastWork / 1000);
+      if (left < need && !this.rushing) { this.rushing = true; log('join ' + Math.max(0, left).toFixed(1) + ' s away: working without rests'); }
+      return left < need;
+    }
     async bridge(o, b, out) {
       var a = b.from, t0 = Date.now();
       busyTotal = 0;
       b.from = null;
+      // Where the join will play (the real buffer's timeline is the out position in seconds).
+      this.deadline = a.held.length ? (this.ppos(a, a.held[0].raw) + a.d) / SR : null; this.rushing = false;
       try {
         // A: decode pre-roll + warm-up + the KA held packets; keep the trimmed tail.
         var early = a.held.splice(0, a.held.length - KA), me0 = this;     // anything held back after a seek plays now
@@ -447,6 +461,7 @@
         var self = this;
         rest.forEach(function (k) { b.held.push(k); while (b.held.length > KA) self.emit(b, b.held.shift(), out); });
         var ms = Date.now() - t0, cpu = busyTotal + (Date.now() - stepT);
+        lastWork = cpu; this.deadline = null;
         API.stats.joins++; API.stats.ms += ms;
         log('bridge: ' + frames.length + ' packets re-encoded (' + (L2 / 48).toFixed(1) + ' ms, stretched ' + ((L2 / L - 1) * 100).toFixed(2) + '%) in ' + ms + ' ms (' + cpu + ' ms of work, the rest pauses)');
       } catch (e) {

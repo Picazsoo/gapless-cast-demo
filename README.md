@@ -47,7 +47,7 @@ Reports come in through the **Report your result** form on the [demo page](https
 | Google TV (onn 4K, 2023) | latest update, Nov 2026 | – (single device) | gap | glitch | **seamless** |
 | Google Home Mini (1st gen) | – | – | not tried | seamless (reported by a tester) | **too slow**: the Opus decoder runs at about 0.2× real time |
 
-The table covers the lossless way of the sample-accurate mode. The page also has an **experimental Opus bridge** option, which keeps one continuous Opus stream and decodes and re-encodes only about 0.2 s around each join, for devices too slow to decode everything. It was heard as seamless on the Chromecast Audio and the onn 4K. It is still being tested on the Home Mini and hasn't been tried in a speaker group yet.
+The table covers the lossless way of the sample-accurate mode. The page also has an **experimental Opus bridge** option, which keeps one continuous Opus stream and decodes and re-encodes only about 0.1 s around each join, for devices too slow to decode everything. It was heard as seamless on the Chromecast Audio and the onn 4K. It is still being tested on the Home Mini and hasn't been tried in a speaker group yet.
 
 ## How it works
 

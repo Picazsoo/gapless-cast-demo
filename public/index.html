@@ -316,7 +316,7 @@
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks might remain, depending on the device.</span></label>
-        <div class="mode group" id="saCard"><input type="radio" name="mode" value="sa" id="saRadio" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
+        <div class="mode group" id="saCard"><input type="radio" name="mode" value="sa" id="saRadio" checked aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
           <div class="sub" role="radiogroup" aria-label="Sample-accurate variant">
             <label><input type="radio" name="variant" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
             <label><input type="radio" name="variant" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
@@ -702,7 +702,8 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var MODE_NAMES = { 'auto': 'auto', 'stock': 'stock', 'per-track': 'stock', 'plain': 'plain', 'queue': 'plain',
     'sample-accurate': 'sample-accurate', 'lossless': 'sample-accurate', 'opus-bridge': 'opus-bridge', 'bridge': 'opus-bridge' };
   (function () {
-    var m = MODE_NAMES[(new URLSearchParams(location.search).get('mode') || '').toLowerCase()];
+    var q = (new URLSearchParams(location.search).get('mode') || '').toLowerCase();
+    var m = Object.prototype.hasOwnProperty.call(MODE_NAMES, q) && MODE_NAMES[q];
     if (m) showMode(m);
   })();
   function modeToUrl(m) {
@@ -1109,7 +1110,10 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   function modeChanged() { var m = modeNow(); chosen = m; modeToUrl(m); send({ cmd: 'mode', mode: m }); }
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) { r.onchange = modeChanged; });
   // Picking a variant also picks the card; clicking anywhere else on the card picks it with the variant it shows.
-  [].forEach.call(document.querySelectorAll('input[name=variant]'), function (r) { r.onchange = function () { $('saRadio').checked = true; modeChanged(); }; });
+  // click, not change: clicking the variant that's already ticked must still bring the card back.
+  [].forEach.call(document.querySelectorAll('input[name=variant]'), function (r) {
+    r.onclick = function () { var wasSa = $('saRadio').checked, was = chosen; $('saRadio').checked = true; if (!wasSa || modeNow() !== was) modeChanged(); };
+  });
   $('saCard').onclick = function (e) { if (!$('saRadio').checked && !e.target.closest('.sub label')) { $('saRadio').checked = true; modeChanged(); } };
 })();
 </script>

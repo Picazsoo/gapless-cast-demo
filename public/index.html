@@ -93,10 +93,9 @@
   .mode .dot { position: absolute; left: 14px; top: 17px; width: 12px; height: 12px; border-radius: 50%; }
   .mode b { display: block; font-size: 15px; }
   .mode span.d { display: block; font-size: 13px; color: var(--muted); line-height: 1.4; margin-top: 2px; }
-  .mode:has(input:checked) { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg) inset; }
-  .mode:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
-  .mode.group { cursor: default; }
-  .mode.group:has(input:focus-visible) { outline: none; }
+  .mode:has(> input:checked) { border-color: var(--fg); box-shadow: 0 0 0 1px var(--fg) inset; }
+  .mode:has(> input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .mode.group:not(:has(> input:checked)) .sub { opacity: .6; }
   .mode .sub { margin-top: 8px; display: grid; gap: 6px; }
   .mode .sub label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; margin-left: -8px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; }
   .mode .sub label:has(input:checked) { border-color: var(--line); }
@@ -317,11 +316,11 @@
       <div class="modes" role="radiogroup" aria-label="Playback mode">
         <label class="mode"><input type="radio" name="mode" value="stock"><i class="dot bad"></i><b>Per-track, like YouTube Music</b><span class="d">How the YouTube Music Cast receiver plays music today: each track is a new media load. A gap at every split.</span></label>
         <label class="mode"><input type="radio" name="mode" value="plain"><i class="dot meh"></i><b>Gapless queue</b><span class="d">One media stream for the whole album, nothing trimmed. Small gaps and clicks might remain, depending on the device.</span></label>
-        <div class="mode group" role="group" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
-          <div class="sub">
-            <label><input type="radio" name="mode" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
-            <label><input type="radio" name="mode" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
-            <label><input type="radio" name="mode" value="auto"><span><b>Automatic (experimental)</b><span class="d">Lets the receiver choose from what the device supports: lossless where it has Web Audio, the Opus bridge where it doesn't. The log says what it picked.</span></span></label>
+        <div class="mode group" id="saCard"><input type="radio" name="mode" value="sa" id="saRadio" aria-label="Sample-accurate"><i class="dot good"></i><b>Sample-accurate</b><span class="d">The same queue, with a SourceBuffer that trims every join to the sample. Two ways to do it, or let the device choose:</span>
+          <div class="sub" role="radiogroup" aria-label="Sample-accurate variant">
+            <label><input type="radio" name="variant" value="sample-accurate" checked><span><b>Lossless</b><span class="d">Decodes every track and hands the speaker lossless FLAC. Seamless on the devices tested so far.</span></span></label>
+            <label><input type="radio" name="variant" value="opus-bridge"><span><b>Opus bridge (experimental)</b><span class="d">Keeps one continuous Opus stream and re-encodes only ~0.2 s around each join. For devices too slow to decode everything.</span></span></label>
+            <label><input type="radio" name="variant" value="auto"><span><b>Automatic (experimental)</b><span class="d">Lets the receiver choose from what the device supports: lossless where it has Web Audio, the Opus bridge where it doesn't. The log says what it picked.</span></span></label>
           </div>
         </div>
       </div>
@@ -674,6 +673,13 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var NS = 'urn:x-cast:dev.gapless.castdemo';
   function $(id) { return document.getElementById(id); }
   function pick(name) { return document.querySelector('input[name=' + name + ']:checked').value; }
+  // The Sample-accurate card is one choice among the modes; its variant (lossless, bridge, auto) is a separate setting that keeps its value.
+  function modeNow() { var m = pick('mode'); return m === 'sa' ? pick('variant') : m; }
+  function showMode(m) {
+    var top = m === 'stock' || m === 'plain' ? m : 'sa';
+    document.querySelector('input[name=mode][value="' + top + '"]').checked = true;
+    if (top === 'sa') document.querySelector('input[name=variant][value="' + m + '"]').checked = true;
+  }
   function fmt(s) { s = Math.round(s); return Math.floor(s / 60) + ':' + ('0' + s % 60).slice(-2); }
   var album = null, el = $('audio'), nowIndex = -1;
   // Where reports go: change this if you fork the repository.
@@ -697,22 +703,21 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     'sample-accurate': 'sample-accurate', 'lossless': 'sample-accurate', 'opus-bridge': 'opus-bridge', 'bridge': 'opus-bridge' };
   (function () {
     var m = MODE_NAMES[(new URLSearchParams(location.search).get('mode') || '').toLowerCase()];
-    var r = m && document.querySelector('input[name=mode][value="' + m + '"]');
-    if (r) r.checked = true;
+    if (m) showMode(m);
   })();
   function modeToUrl(m) {
     try {
-      var q = new URLSearchParams(location.search), short = { 'sample-accurate': 'lossless', 'opus-bridge': 'bridge' }[m] || m;
+      var q = new URLSearchParams(location.search), short = { 'sample-accurate': 'lossless', 'opus-bridge': 'bridge', 'plain': 'queue', 'stock': 'per-track' }[m] || m;
       q.set('mode', short);
       history.replaceState(null, '', location.pathname + '?' + q.toString() + location.hash);
     } catch (e) {}
   }
-  var chosen = pick('mode');   // the mode you picked; a target without sample-accurate support shows (and plays) plain instead
+  var chosen = modeNow();   // the mode you picked; a target without sample-accurate support shows (and plays) plain instead
   function target() { return pick('target'); }
   function render() {
     var s = players[target()];
     nowIndex = s.index; paused = s.paused;
-    document.querySelector('input[name=mode][value="' + (noSampleAccurate[target()] && chosen === 'sample-accurate' ? 'plain' : chosen) + '"]').checked = true;
+    showMode(noSampleAccurate[target()] && chosen === 'sample-accurate' ? 'plain' : chosen);
     $('pause').textContent = s.paused ? 'Resume' : 'Pause';
     [].forEach.call($('tracks').children, function (li, i) { li.className = i === s.index && !otherAlbum(s) ? 'now' : ''; });
     $('nowTitle').textContent = s.index < 0 ? 'Nothing playing' : (s.index + 1) + '. ' + s.title;
@@ -801,7 +806,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
       li.innerHTML = '<span></span><span class="d"></span>';
       li.children[0].textContent = t.title; li.children[1].textContent = fmt(t.duration);
       li.tabIndex = 0; li.setAttribute('role', 'button'); li.setAttribute('aria-label', 'Play track ' + (i + 1) + ': ' + t.title);
-      li.onclick = function () { send({ cmd: 'play', mode: pick('mode'), index: i, offset: 0 }); };
+      li.onclick = function () { send({ cmd: 'play', mode: modeNow(), index: i, offset: 0 }); };
       li.onkeydown = function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); li.onclick(); } };
       $('tracks').appendChild(li);
       if (i + 1 < a.tracks.length) {
@@ -936,9 +941,9 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     } else Demo.handle(cmd, el);
   }
   function resetPause() { paused = false; players[target()].paused = false; $('pause').textContent = 'Pause'; }
-  $('play').onclick = function () { resetPause(); send({ cmd: 'play', mode: pick('mode'), index: 0, offset: 0 }); };
+  $('play').onclick = function () { resetPause(); send({ cmd: 'play', mode: modeNow(), index: 0, offset: 0 }); };
   $('jump').onclick = function () {
-    var cmd = Demo.joinCommand(+$('join').value, pick('mode'));
+    var cmd = Demo.joinCommand(+$('join').value, modeNow());
     if (!cmd) { log('the album is still loading'); return; }
     resetPause(); send(cmd);
   };
@@ -955,7 +960,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
     var offset = Math.min(frac * t.duration, t.duration - Math.min(0.5, t.duration / 4));   // not past the end (short tracks: a quarter of their length)
     $('progress').style.width = (100 * frac) + '%';
     resetPause();
-    send({ cmd: 'play', mode: pick('mode'), index: nowIndex, offset: offset });
+    send({ cmd: 'play', mode: modeNow(), index: nowIndex, offset: offset });
   }
   $('seek').onclick = function (ev) { var r = this.getBoundingClientRect(); seekTo((ev.clientX - r.left) / r.width); };
   // Keyboard: arrows move 5 s, Home/End go to the start/end of the track.
@@ -1101,9 +1106,11 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   }
 
   // Switching mode while playing restarts the same spot in the new mode.
-  [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
-    r.onchange = function () { if (this.checked) { chosen = this.value; modeToUrl(this.value); send({ cmd: 'mode', mode: this.value }); } };
-  });
+  function modeChanged() { var m = modeNow(); chosen = m; modeToUrl(m); send({ cmd: 'mode', mode: m }); }
+  [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) { r.onchange = modeChanged; });
+  // Picking a variant also picks the card; clicking anywhere else on the card picks it with the variant it shows.
+  [].forEach.call(document.querySelectorAll('input[name=variant]'), function (r) { r.onchange = function () { $('saRadio').checked = true; modeChanged(); }; });
+  $('saCard').onclick = function (e) { if (!$('saRadio').checked && !e.target.closest('.sub label')) { $('saRadio').checked = true; modeChanged(); } };
 })();
 </script>
 <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>

@@ -692,6 +692,21 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
   var players = { local: blank(), cast: blank() };
   var noSampleAccurate = { local: false, cast: false };
   var playingMode = { local: '', cast: '' };   // that target fell back to the plain queue
+  // ?mode=… picks the mode, so a link can start in one (e.g. ?mode=bridge); picking a mode updates the address to match.
+  var MODE_NAMES = { 'auto': 'auto', 'stock': 'stock', 'per-track': 'stock', 'plain': 'plain', 'queue': 'plain',
+    'sample-accurate': 'sample-accurate', 'lossless': 'sample-accurate', 'opus-bridge': 'opus-bridge', 'bridge': 'opus-bridge' };
+  (function () {
+    var m = MODE_NAMES[(new URLSearchParams(location.search).get('mode') || '').toLowerCase()];
+    var r = m && document.querySelector('input[name=mode][value="' + m + '"]');
+    if (r) r.checked = true;
+  })();
+  function modeToUrl(m) {
+    try {
+      var q = new URLSearchParams(location.search), short = { 'sample-accurate': 'lossless', 'opus-bridge': 'bridge' }[m] || m;
+      q.set('mode', short);
+      history.replaceState(null, '', location.pathname + '?' + q.toString() + location.hash);
+    } catch (e) {}
+  }
   var chosen = pick('mode');   // the mode you picked; a target without sample-accurate support shows (and plays) plain instead
   function target() { return pick('target'); }
   function render() {
@@ -1087,7 +1102,7 @@ document.addEventListener('DOMContentLoaded', function () {   // version.js load
 
   // Switching mode while playing restarts the same spot in the new mode.
   [].forEach.call(document.querySelectorAll('input[name=mode]'), function (r) {
-    r.onchange = function () { if (this.checked) { chosen = this.value; send({ cmd: 'mode', mode: this.value }); } };
+    r.onchange = function () { if (this.checked) { chosen = this.value; modeToUrl(this.value); send({ cmd: 'mode', mode: this.value }); } };
   });
 })();
 </script>

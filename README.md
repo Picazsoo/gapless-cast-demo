@@ -1,4 +1,4 @@
-# Gapless albums on Cast: a receiver-side demo, tested on a few devices so far
+# YouTube Music gapless albums on Cast: a receiver-side demo, tested on a few devices so far
 
 **Try it: [https://picazsoo.github.io/gapless-cast-demo/](https://picazsoo.github.io/gapless-cast-demo/)** (play in the browser, or cast to your own speakers and report the result)
 
@@ -11,7 +11,13 @@ The point is to show a change that could work for a music Cast receiver, in code
 - Use **one MediaSource and one SourceBuffer for the whole queue**, which is a gapless queue mode many players already have.
 - Put a **sample-accurate SourceBuffer** underneath it. This is a drop-in object that decodes the Opus, trims encoder delay and padding by sample count, and hands MSE lossless PCM (FLAC in fMP4).
 
-The player code above the SourceBuffer doesn't change: one flag switches it. Two things to know if you put it under another player: it trims by sample count, so append windows are accepted but ignored, and a seek back into audio it has already evicted needs the player to clear the buffer (`remove()`) and append again from there, which is what this demo's queue does on every seek. For comparison there is also a **per-track (stock)** mode, which loads every track into its own MediaSource the usual non-gapless way. You can switch between all three modes while the album plays, and it carries on from the same spot.
+The player code above the SourceBuffer doesn't change: one flag switches it. Two things to know if you put it under another player: it trims by sample count, so append windows are accepted but ignored, and a seek back into audio it has already evicted needs the player to clear the buffer (`remove()`) and append again from there, which is what this demo's queue does on every seek. The page has three modes:
+
+- **Per-track (stock)** loads every track into its own MediaSource, the usual non-gapless way, for comparison.
+- **Gapless queue** is the plain single-SourceBuffer queue, nothing trimmed.
+- **Sample-accurate** is the same queue with the sample-accurate SourceBuffer. It plays the **lossless** way by default. There are two experimental variants: the **Opus bridge**, for devices too slow to decode everything (see [below](#the-opus-bridge-experimental)), and **Automatic**, which lets the receiver pick between lossless and the bridge from what the device supports.
+
+You can switch modes while the album plays, and it carries on from the same spot.
 
 > Not affiliated with Google or YouTube. This repository contains no code from any Google receiver. Our own code is MIT-licensed, the only third-party code is libopus compiled to JavaScript (see [Licence](#licence)), and the audio is public domain.
 
@@ -39,7 +45,7 @@ On a Cast device the per-track gap is much longer, because each new media load g
 
 ### Results on other Cast devices
 
-Reports come in through the **Report your result** form on the [demo page](https://picazsoo.github.io/gapless-cast-demo/#report), which opens a pre-filled [device report](../../issues/new?template=device-report.yml). It includes the receiver's firmware and browser version, never the device's name.
+Reports come in through the **Report your result** form on the [demo page](https://picazsoo.github.io/gapless-cast-demo/#report). It can open a pre-filled [device report](../../issues/new?template=device-report.yml) on GitHub, send the same report without an account through a Google Form that only the author can read, or copy it as text. The visitor sees the report before it is sent. It includes the receiver's firmware and browser version, never the device's name.
 
 | Device | Firmware / Chrome | Speaker group | Per-track (YouTube Music) | Gapless queue | Sample-accurate |
 |---|---|---|---|---|---|
@@ -115,6 +121,10 @@ The details that matter in practice:
 - **Cost:** one `decodeAudioData` per ~10 s cluster, plus copying PCM into verbatim FLAC frames, with no compression step. A 2015 Chromecast Audio keeps up comfortably.
 - **No Web Audio?** Lightweight Cast runtimes (smart speakers) have MSE but no `decodeAudioData` and no WebAssembly. There the wrapper decodes with libopus compiled to asm.js (vendored from opusscript, see `public/js/vendor/`), which runs at dozens of times real time on a desktop. The receiver logs the measured speed on the device.
 
+### The Opus bridge (experimental)
+
+`public/js/opus-bridge-sb.js` is a second drop-in SourceBuffer for devices that can't decode a whole album in time, such as a first-generation Google Home Mini. It keeps the original Opus packets and one continuous Opus stream. At each join it decodes a few packets on both sides with libopus (asm.js), trims by sample count, and re-encodes only those (about 0.2 s, at 192 kb/s). The bridge is retimed to whole 2.5 ms Opus frames, which changes the tempo of that short stretch by under 1% (up to about 2% for the shorter bridge it uses when a join comes up quickly). The work is done in small steps with short rests between them, to leave a slow CPU room to keep playing. Everything else in the stream is passed through untouched.
+
 ### What a music receiver would change
 
 ```mermaid
@@ -145,6 +155,11 @@ node server.js          (or double-click start.bat on Windows)
 
 **In this browser:** open `http://localhost:8080/`, pick a mode and press **Play album**. You can also choose a join, such as *10 → 11*, and press **Go** to start 4 s before it. Change the mode while it plays: the receiver restarts at the same position in the new mode, with no reload or reconnect.
 
+**Links:** the page reads two optional query parameters, so you can share a link that starts in a given setup. Picking a mode updates the address bar to match.
+
+- `?mode=` selects the mode: `per-track`, `queue`, `lossless` (the default), `bridge` or `auto`.
+- `?album=short` loads a stress-test album instead: 17 tracks that get shorter and shorter, from 12 s down to 0.9 s, to find where a slow device stops keeping up. Example: `?album=short&mode=bridge`.
+
 **On a Cast device:**
 
 1. In the [Google Cast SDK Developer Console](https://cast.google.com/publish), add a *Custom Receiver* with the URL the server prints, `http://<this computer's LAN IP>:8080/receiver.html`. Register your Cast device's serial number for development, and reboot the device once. While the app is unpublished, a registered device loads it over plain HTTP.
@@ -158,6 +173,7 @@ node server.js          (or double-click start.bat on Windows)
 | Path | What it is |
 |---|---|
 | `public/js/sample-accurate-sb.js` | The sample-accurate SourceBuffer (the interesting part) |
+| `public/js/opus-bridge-sb.js` | The experimental Opus bridge SourceBuffer |
 | `public/js/mse-queue.js` | A deliberately ordinary single-SourceBuffer queue player |
 | `public/js/flac-mp4.js` | WebM/EBML reading, Opus packet sizes, FLAC frame + fragmented MP4 writer |
 | `public/js/demo.js` | Shared glue for the page and the receiver |
@@ -165,6 +181,7 @@ node server.js          (or double-click start.bat on Windows)
 | `public/receiver.html` | Cast receiver (CAF, custom message namespace, its own `<audio>`) |
 | `public/js/cast-session.js` | Receiver as a real Cast media session: Google Home shows the current track (title, duration, position inside it) and can pause, seek and skip, although the gapless modes play one continuous stream |
 | `public/album/` | 14 Opus/WebM tracks, `album.json`, `SOURCE.txt` |
+| `public/album-short/` | The `?album=short` stress album: 17 tracks from 12 s down to 0.9 s, `album.json`, `SOURCE.txt` |
 | `server.js` | Zero-dependency static server with byte ranges |
 
 ## The test album

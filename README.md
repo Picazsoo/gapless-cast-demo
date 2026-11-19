@@ -123,7 +123,15 @@ The details that matter in practice:
 
 ### The Opus bridge (experimental)
 
-`public/js/opus-bridge-sb.js` is a second drop-in SourceBuffer for devices that can't decode a whole album in time, such as a first-generation Google Home Mini. It keeps the original Opus packets and one continuous Opus stream. At each join it decodes a few packets on both sides with libopus (asm.js), trims by sample count, and re-encodes only those (about 0.2 s, at 192 kb/s). The bridge is retimed to whole 2.5 ms Opus frames, which changes the tempo of that short stretch by under 1% (up to about 2% for the shorter bridge it uses when a join comes up quickly). The work is done in small steps with short rests between them, to leave a slow CPU room to keep playing. Everything else in the stream is passed through untouched.
+`public/js/opus-bridge-sb.js` is a second drop-in SourceBuffer for devices that can't decode a whole album in time, such as a first-generation Google Home Mini. It keeps the original Opus packets and one continuous Opus stream. At each join it decodes a few packets on both sides with libopus (asm.js), trims by sample count, and re-encodes only those, at 192 kb/s with the encoder's fastest setting. Everything else in the stream is passed through untouched.
+
+It adapts to the device and to how much time there is before each join:
+
+- **It measures its own speed.** Each bridge times how long the work took on this device, and the next join uses that figure.
+- **It picks the bridge size per join.** When there is plenty of time before the join, as in a long track, it makes the full bridge: 3 packets before the join and 6 after, about 0.2 s. When the join is close, as with back-to-back short tracks on a slow device, it makes a short bridge of 2 + 2 packets, about 60% of the work. The short one is a little less exact for about 0.1 s.
+- **It paces the work.** It runs in small steps with short rests between them, to leave a slow CPU room to keep playing, and drops the rests when the join is getting close.
+
+The bridge is retimed to whole 2.5 ms Opus frames, which changes the tempo of that short stretch by under 1% for the full bridge, and up to about 2% for the short one.
 
 ### What a music receiver would change
 
